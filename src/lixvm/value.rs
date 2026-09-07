@@ -3,6 +3,7 @@ pub enum Value {
     Int(i64),
     Str(String),
     Bool(bool),
+    Object(String, std::collections::HashMap<String, Value>),
 }
 
 impl Value {
@@ -11,6 +12,10 @@ impl Value {
             Value::Int(n) => n.to_string(),
             Value::Str(s) => s.clone(),
             Value::Bool(b) => b.to_string(),
+            Value::Object(type_name, fields) => {
+                let pairs: Vec<String> = fields.iter().map(|(k, v)| format!("{}: {}", k, v.stringify())).collect();
+                format!("{}({})", type_name, pairs.join(", "))
+            }
         }
     }
 }
