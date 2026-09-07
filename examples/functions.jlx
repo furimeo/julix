@@ -1,0 +1,18 @@
+// step 5: function
+function add(a, b) {
+    return a + b;
+}
+
+function fib(n) {
+    if (n < 2) { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+
+function greet(name) {
+    println("hello ");
+    println(name);
+}
+
+println(add(3, 4));
+println(fib(10));
+greet("julix");
