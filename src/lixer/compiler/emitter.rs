@@ -1,4 +1,4 @@
-use crate::bytecode::chunk::Chunk;
+use crate::bytecode::chunk::{Chunk, FunctionDef, FunctionTable};
 use crate::bytecode::instruction::Instruction;
 use crate::lixer::ast::expression::Expression;
 use crate::lixer::ast::statement::Statement;
@@ -6,16 +6,22 @@ use crate::lixer::ast::statement::Statement;
 const BREAK_SENTINEL: usize = usize::MAX;
 const CONTINUE_SENTINEL: usize = usize::MAX - 1;
 
-pub fn compile(stmts: &[Statement]) -> Chunk {
+pub fn compile(stmts: &[Statement]) -> (Chunk, FunctionTable) {
     let mut chunk = Chunk::new();
+    let mut functions = FunctionTable::new();
     for stmt in stmts {
-        compile_statement(stmt, &mut chunk, None);
+        compile_statement(stmt, &mut chunk, &mut functions, None);
     }
     chunk.push(Instruction::Halt);
-    chunk
+    (chunk, functions)
 }
 
-fn compile_statement(stmt: &Statement, chunk: &mut Chunk, loop_info: Option<(usize, usize)>) {
+fn compile_statement(
+    stmt: &Statement,
+    chunk: &mut Chunk,
+    functions: &mut FunctionTable,
+    loop_info: Option<(usize, usize)>,
+) {
     match stmt {
         Statement::Print(expr) => {
             compile_expression(expr, chunk);
@@ -43,7 +49,7 @@ fn compile_statement(stmt: &Statement, chunk: &mut Chunk, loop_info: Option<(usi
             let jump_false = chunk.len();
             chunk.push(Instruction::JumpIfFalse(0));
             for s in then_body {
-                compile_statement(s, chunk, loop_info);
+                compile_statement(s, chunk, functions, loop_info);
             }
             let jump_end = chunk.len();
             chunk.push(Instruction::Jump(0));
@@ -54,7 +60,7 @@ fn compile_statement(stmt: &Statement, chunk: &mut Chunk, loop_info: Option<(usi
                 let jf = chunk.len();
                 chunk.push(Instruction::JumpIfFalse(0));
                 for s in &branch.body {
-                    compile_statement(s, chunk, loop_info);
+                    compile_statement(s, chunk, functions, loop_info);
                 }
                 let je = chunk.len();
                 chunk.push(Instruction::Jump(0));
@@ -64,7 +70,7 @@ fn compile_statement(stmt: &Statement, chunk: &mut Chunk, loop_info: Option<(usi
 
             if let Some(else_body) = else_body {
                 for s in else_body {
-                    compile_statement(s, chunk, loop_info);
+                    compile_statement(s, chunk, functions, loop_info);
                 }
             }
             chunk.code[jump_end] = Instruction::Jump(chunk.len());
@@ -75,7 +81,7 @@ fn compile_statement(stmt: &Statement, chunk: &mut Chunk, loop_info: Option<(usi
             let jump_exit = chunk.len();
             chunk.push(Instruction::JumpIfFalse(0));
             for s in body {
-                compile_statement(s, chunk, Some((loop_start, 0)));
+                compile_statement(s, chunk, functions, Some((loop_start, 0)));
             }
             chunk.push(Instruction::Jump(loop_start));
             let loop_end = chunk.len();
@@ -99,7 +105,7 @@ fn compile_statement(stmt: &Statement, chunk: &mut Chunk, loop_info: Option<(usi
             let jump_exit = chunk.len();
             chunk.push(Instruction::JumpIfFalse(0));
             for s in body {
-                compile_statement(s, chunk, Some((loop_start, 0)));
+                compile_statement(s, chunk, functions, Some((loop_start, 0)));
             }
             let continue_target = chunk.len();
             chunk.push(Instruction::LoadVar(var.clone()));
@@ -110,6 +116,32 @@ fn compile_statement(stmt: &Statement, chunk: &mut Chunk, loop_info: Option<(usi
             let loop_end = chunk.len();
             chunk.code[jump_exit] = Instruction::JumpIfFalse(loop_end);
             patch_loop_jumps(chunk, loop_start, continue_target, loop_end);
+        }
+        Statement::FunctionDef { name, params, body } => {
+            let mut func_chunk = Chunk::new();
+            for s in body {
+                compile_statement(s, &mut func_chunk, functions, None);
+            }
+            func_chunk.push(Instruction::Return);
+            functions.insert(
+                name.clone(),
+                FunctionDef {
+                    chunk: func_chunk,
+                    params: params.clone(),
+                },
+            );
+        }
+        Statement::Return(expr) => {
+            if let Some(e) = expr {
+                compile_expression(e, chunk);
+            } else {
+                chunk.push(Instruction::LoadBool(false));
+            }
+            chunk.push(Instruction::Return);
+        }
+        Statement::Expr(expr) => {
+            compile_expression(expr, chunk);
+            chunk.push(Instruction::Pop);
         }
         Statement::Break => {
             if loop_info.is_some() {
@@ -220,5 +252,16 @@ fn compile_expression(expr: &Expression, chunk: &mut Chunk) {
             chunk.push(Instruction::Not);
         }
         Expression::Range(_, _) => {}
+        Expression::Call { callee, args } => {
+            for arg in args {
+                compile_expression(arg, chunk);
+            }
+            if let Expression::Ident(name) = callee.as_ref() {
+                chunk.push(Instruction::Call(name.clone(), args.len()));
+            } else {
+                eprintln!("error: cannot call non-identifier");
+                std::process::exit(1);
+            }
+        }
     }
 }

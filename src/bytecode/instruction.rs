@@ -38,6 +38,10 @@ pub enum Instruction {
     Print,
     PrintLn,
 
+    // functions
+    Call(String, usize),
+    Return,
+
     // misc
     Pop,
     Halt,

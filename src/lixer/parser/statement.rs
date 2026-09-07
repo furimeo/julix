@@ -1,3 +1,4 @@
+use crate::lixer::ast::expression::Expression;
 use crate::lixer::ast::statement::{ElifBranch, Statement};
 use crate::lixer::lexer::token::Token;
 use crate::lixer::parser::expression::Parser;
@@ -53,6 +54,8 @@ fn parse_statement(p: &mut Parser) -> Statement {
         Token::If => parse_if(p),
         Token::While => parse_while(p),
         Token::For => parse_for(p),
+        Token::Function => parse_function(p),
+        Token::Return => parse_return(p),
         Token::Break => {
             p.advance();
             expect_end(p);
@@ -63,13 +66,19 @@ fn parse_statement(p: &mut Parser) -> Statement {
             expect_end(p);
             Statement::Continue
         }
-        Token::Ident(name) => {
-            let name = name.clone();
-            p.advance();
-            p.expect(Token::Assign);
+        Token::Ident(_) => {
             let expr = p.parse_expression();
+            if matches!(p.peek(), Token::Assign) {
+                if let Expression::Ident(name) = &expr {
+                    let name = name.clone();
+                    p.advance();
+                    let value = p.parse_expression();
+                    expect_end(p);
+                    return Statement::Assign { name, expr: value };
+                }
+            }
             expect_end(p);
-            Statement::Assign { name, expr }
+            Statement::Expr(expr)
         }
         t => {
             eprintln!("parse error: expected statement, got {:?}", t);
@@ -167,6 +176,37 @@ fn expect_ident(p: &mut Parser) -> String {
             std::process::exit(1);
         }
     }
+}
+
+fn parse_function(p: &mut Parser) -> Statement {
+    p.advance();
+    let name = expect_ident(p);
+    p.expect(Token::LParen);
+    let mut params = Vec::new();
+    if !matches!(p.peek(), Token::RParen) {
+        params.push(expect_ident(p));
+        while matches!(p.peek(), Token::Comma) {
+            p.advance();
+            params.push(expect_ident(p));
+        }
+    }
+    p.expect(Token::RParen);
+    let body = parse_block(p);
+    Statement::FunctionDef { name, params, body }
+}
+
+fn parse_return(p: &mut Parser) -> Statement {
+    p.advance();
+    if matches!(
+        p.peek(),
+        Token::Semicolon | Token::Newline | Token::Eof | Token::RBrace
+    ) {
+        expect_end(p);
+        return Statement::Return(None);
+    }
+    let expr = p.parse_expression();
+    expect_end(p);
+    Statement::Return(Some(expr))
 }
 
 fn expect_end(p: &mut Parser) {

@@ -167,13 +167,29 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_primary(&mut self) -> Expression {
-        match self.advance() {
-            Token::Int(n) => Expression::Int(n),
-            Token::Str(s) => Expression::Str(s),
-            Token::True => Expression::Bool(true),
-            Token::False => Expression::Bool(false),
-            Token::Ident(name) => Expression::Ident(name),
+        let expr = match self.peek().clone() {
+            Token::Int(n) => {
+                self.advance();
+                Expression::Int(n)
+            }
+            Token::Str(s) => {
+                self.advance();
+                Expression::Str(s)
+            }
+            Token::True => {
+                self.advance();
+                Expression::Bool(true)
+            }
+            Token::False => {
+                self.advance();
+                Expression::Bool(false)
+            }
+            Token::Ident(name) => {
+                self.advance();
+                Expression::Ident(name)
+            }
             Token::LParen => {
+                self.advance();
                 let expr = self.parse_expression();
                 self.expect(Token::RParen);
                 expr
@@ -182,6 +198,28 @@ impl<'a> Parser<'a> {
                 eprintln!("parse error: expected literal or identifier, got {:?}", t);
                 std::process::exit(1);
             }
+        };
+        self.parse_call(expr)
+    }
+
+    fn parse_call(&mut self, callee: Expression) -> Expression {
+        let mut expr = callee;
+        while matches!(self.peek(), Token::LParen) {
+            self.advance();
+            let mut args = Vec::new();
+            if !matches!(self.peek(), Token::RParen) {
+                args.push(self.parse_expression());
+                while matches!(self.peek(), Token::Comma) {
+                    self.advance();
+                    args.push(self.parse_expression());
+                }
+            }
+            self.expect(Token::RParen);
+            expr = Expression::Call {
+                callee: Box::new(expr),
+                args,
+            };
         }
+        expr
     }
 }

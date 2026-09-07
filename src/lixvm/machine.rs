@@ -1,4 +1,4 @@
-use crate::bytecode::chunk::Chunk;
+use crate::bytecode::chunk::{Chunk, FunctionTable};
 use crate::bytecode::instruction::Instruction;
 use crate::lixvm::environment::Environment;
 use crate::lixvm::operations::arithmetic;
@@ -6,20 +6,30 @@ use crate::lixvm::operations::comparison;
 use crate::lixvm::operations::logic;
 use crate::lixvm::value::Value;
 
+struct Frame {
+    return_ip: usize,
+    return_env: Environment,
+    return_chunk: Chunk,
+}
+
 pub struct Machine {
     chunk: Chunk,
     env: Environment,
+    functions: FunctionTable,
     stack: Vec<Value>,
     ip: usize,
+    frames: Vec<Frame>,
 }
 
 impl Machine {
-    pub fn new(chunk: Chunk) -> Self {
+    pub fn new(chunk: Chunk, functions: FunctionTable) -> Self {
         Machine {
             chunk,
             env: Environment::new(),
+            functions,
             stack: Vec::new(),
             ip: 0,
+            frames: Vec::new(),
         }
     }
 
@@ -79,6 +89,42 @@ impl Machine {
                 Instruction::PrintLn => {
                     let value = self.pop();
                     println!("{}", value.stringify());
+                }
+                Instruction::Call(name, argc) => {
+                    let mut args = Vec::new();
+                    for _ in 0..argc {
+                        args.push(self.pop());
+                    }
+                    args.reverse();
+                    let func_def = match self.functions.get(&name) {
+                        Some(f) => f.clone(),
+                        None => {
+                            eprintln!("error: undefined function '{}'", name);
+                            std::process::exit(1);
+                        }
+                    };
+                    let mut func_env = Environment::new();
+                    for (i, param) in func_def.params.iter().enumerate() {
+                        if i < args.len() {
+                            func_env.set(param, args[i].clone());
+                        }
+                    }
+                    let frame = Frame {
+                        return_ip: self.ip,
+                        return_env: std::mem::replace(&mut self.env, func_env),
+                        return_chunk: std::mem::replace(&mut self.chunk, func_def.chunk),
+                    };
+                    self.frames.push(frame);
+                    self.ip = 0;
+                }
+                Instruction::Return => {
+                    let value = self.pop();
+                    if let Some(frame) = self.frames.pop() {
+                        self.ip = frame.return_ip;
+                        self.env = frame.return_env;
+                        self.chunk = frame.return_chunk;
+                    }
+                    self.push(value);
                 }
                 Instruction::Pop => {
                     self.pop();

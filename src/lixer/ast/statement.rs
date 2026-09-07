@@ -40,7 +40,7 @@ pub enum Statement {
         body: Vec<Statement>,
     },
     Return(Option<Expression>),
-    ExprStatement(Expression),
+    Expr(Expression),
 }
 
 #[derive(Debug, Clone)]
