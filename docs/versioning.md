@@ -45,7 +45,7 @@ Independent of the LixVM version. JuJIT is a layer on top of LixVM.
 | Component | Version | Notes |
 |---|---|---|
 | Julix | 0.0.2 | syntax locked, no standard library yet |
-| LixVM | 0.0.0 | not built yet |
+| LixVM | 0.0.1 | first runtime, in progress |
 | JuJIT | 0.0.0 | not built yet, phase 2 |
 
 ## Format
