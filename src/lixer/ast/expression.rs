@@ -23,4 +23,17 @@ pub enum Expression {
         callee: Box<Expression>,
         args: Vec<Expression>,
     },
+    FieldAccess {
+        object: Box<Expression>,
+        field: String,
+    },
+    MethodCall {
+        object: Box<Expression>,
+        method: String,
+        args: Vec<Expression>,
+    },
+    Construct {
+        type_name: String,
+        fields: Vec<(String, Expression)>,
+    },
 }

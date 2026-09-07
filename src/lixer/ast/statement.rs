@@ -41,6 +41,23 @@ pub enum Statement {
     },
     Return(Option<Expression>),
     Expr(Expression),
+    TypeDef {
+        name: String,
+        fields: Vec<(String, String)>,
+        methods: Vec<FunctionDef>,
+    },
+    FieldAssign {
+        object: Expression,
+        field: String,
+        expr: Expression,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionDef {
+    pub name: String,
+    pub params: Vec<String>,
+    pub body: Vec<Statement>,
 }
 
 #[derive(Debug, Clone)]
