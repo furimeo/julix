@@ -1,14 +1,18 @@
 # Julix
 
-Dynamic, script-first, GC-managed. Nhanh hơn Python, sâu hơn JS/Go de lam viec voi system.
+Dynamic, script-first, GC-managed. Faster than Python, deeper than JS/Go for system work.
 
-## Trang thai
+## Status
 
-Dang phat trien. Syntax v0.0.2 da chot, dang build interpreter (T0).
+In development. Syntax v0.0.2 is locked, building the interpreter (LixVM).
 
 ## Syntax
 
-Xem [docs/syntax-v0.0.2.md](docs/syntax-v0.0.2.md).
+See [docs/syntax-v0.0.2.md](docs/syntax-v0.0.2.md).
+
+## Versioning
+
+See [docs/versioning.md](docs/versioning.md).
 
 ## License
 
