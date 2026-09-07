@@ -1,0 +1,21 @@
+// step 6: type + constructor
+type Point {
+    x: int;
+    y: int;
+
+    function add(self, other) {
+        return Point(x: self.x + other.x, y: self.y + other.y);
+    }
+}
+
+let p = Point(x: 1, y: 2);
+println(p.x);
+println(p.y);
+
+let q = Point(x: 3, y: 4);
+let r = p.add(q);
+println(r.x);
+println(r.y);
+
+p.x = 100;
+println(p.x);
