@@ -23,8 +23,10 @@ Invoke-WebRequest -Uri $Url -OutFile "$Tmp\julix.zip"
 Expand-Archive -Path "$Tmp\julix.zip" -DestinationPath $Tmp -Force
 Copy-Item "$Tmp\julix.exe" "$BinDir\julix.exe" -Force
 
-cmd /c mklink /H "$BinDir\lixvm.exe" "$BinDir\julix.exe"
-cmd /c mklink /H "$BinDir\jujit.exe" "$BinDir\julix.exe"
+if (Test-Path "$BinDir\lixvm.exe") { Remove-Item "$BinDir\lixvm.exe" -Force }
+if (Test-Path "$BinDir\jujit.exe") { Remove-Item "$BinDir\jujit.exe" -Force }
+cmd /c mklink /H "$BinDir\lixvm.exe" "$BinDir\julix.exe" 2>&1 | Out-Null
+cmd /c mklink /H "$BinDir\jujit.exe" "$BinDir\julix.exe" 2>&1 | Out-Null
 
 Remove-Item -Recurse -Force $Tmp
 

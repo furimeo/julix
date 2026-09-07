@@ -43,13 +43,21 @@ ln -sf julix "$BIN_DIR/jujit"
 rm -rf "$TMP"
 
 if ! echo "$PATH" | grep -q "$BIN_DIR"; then
-    SHELL_NAME=$(basename "$SHELL")
-    case "$SHELL_NAME" in
-        bash) RC="$HOME/.bashrc";;
-        zsh) RC="$HOME/.zshrc";;
-        fish) RC="$HOME/.config/fish/config.fish";;
-        *) RC="$HOME/.profile";;
-    esac
+    RC=""
+    if [ -n "$SHELL" ]; then
+        SHELL_NAME=$(basename "$SHELL")
+        case "$SHELL_NAME" in
+            bash) RC="$HOME/.bashrc";;
+            zsh) RC="$HOME/.zshrc";;
+            fish) RC="$HOME/.config/fish/config.fish";;
+        esac
+    fi
+    if [ -z "$RC" ]; then
+        if [ -f "$HOME/.bashrc" ]; then RC="$HOME/.bashrc"
+        elif [ -f "$HOME/.zshrc" ]; then RC="$HOME/.zshrc"
+        else RC="$HOME/.profile"
+        fi
+    fi
     echo "export PATH=\"$BIN_DIR:\$PATH\"" >> "$RC"
     echo "Added $BIN_DIR to PATH in $RC"
     echo "Run: source $RC"
