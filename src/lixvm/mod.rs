@@ -1,4 +1,4 @@
 pub mod environment;
-pub mod interpreter;
+pub mod machine;
 pub mod operations;
 pub mod value;

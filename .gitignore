@@ -1,3 +1,5 @@
 /target
 *.jlx
 !examples/*.jlx
+*.jlxr
+!examples/*.jlxr

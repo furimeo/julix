@@ -1,6 +1,6 @@
-use crate::ast::statement::Statement;
-use crate::lexer::token::Token;
-use crate::parser::expression::Parser;
+use crate::lixer::ast::statement::Statement;
+use crate::lixer::lexer::token::Token;
+use crate::lixer::parser::expression::Parser;
 
 pub fn parse(tokens: &[Token]) -> Vec<Statement> {
     let mut p = Parser::new(tokens);

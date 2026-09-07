@@ -1,5 +1,5 @@
-use crate::ast::expression::Expression;
-use crate::lexer::token::Token;
+use crate::lixer::ast::expression::Expression;
+use crate::lixer::lexer::token::Token;
 
 pub struct Parser<'a> {
     tokens: &'a [Token],
@@ -40,7 +40,85 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_expression(&mut self) -> Expression {
-        self.parse_additive()
+        self.parse_or()
+    }
+
+    fn parse_or(&mut self) -> Expression {
+        let mut left = self.parse_and();
+        loop {
+            match self.peek() {
+                Token::OrOr | Token::Or => {
+                    self.advance();
+                    let right = self.parse_and();
+                    left = Expression::Or(Box::new(left), Box::new(right));
+                }
+                _ => break,
+            }
+        }
+        left
+    }
+
+    fn parse_and(&mut self) -> Expression {
+        let mut left = self.parse_not();
+        loop {
+            match self.peek() {
+                Token::AndAnd | Token::And => {
+                    self.advance();
+                    let right = self.parse_not();
+                    left = Expression::And(Box::new(left), Box::new(right));
+                }
+                _ => break,
+            }
+        }
+        left
+    }
+
+    fn parse_not(&mut self) -> Expression {
+        match self.peek() {
+            Token::Bang | Token::Not => {
+                self.advance();
+                let expr = self.parse_not();
+                Expression::Not(Box::new(expr))
+            }
+            _ => self.parse_comparison(),
+        }
+    }
+
+    fn parse_comparison(&mut self) -> Expression {
+        let left = self.parse_additive();
+        match self.peek() {
+            Token::EqEq => {
+                self.advance();
+                let right = self.parse_additive();
+                Expression::Eq(Box::new(left), Box::new(right))
+            }
+            Token::NotEq => {
+                self.advance();
+                let right = self.parse_additive();
+                Expression::NotEq(Box::new(left), Box::new(right))
+            }
+            Token::Lt => {
+                self.advance();
+                let right = self.parse_additive();
+                Expression::Lt(Box::new(left), Box::new(right))
+            }
+            Token::Gt => {
+                self.advance();
+                let right = self.parse_additive();
+                Expression::Gt(Box::new(left), Box::new(right))
+            }
+            Token::LtEq => {
+                self.advance();
+                let right = self.parse_additive();
+                Expression::LtEq(Box::new(left), Box::new(right))
+            }
+            Token::GtEq => {
+                self.advance();
+                let right = self.parse_additive();
+                Expression::GtEq(Box::new(left), Box::new(right))
+            }
+            _ => left,
+        }
     }
 
     fn parse_additive(&mut self) -> Expression {

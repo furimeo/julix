@@ -1,7 +1,9 @@
-mod ast;
-mod lexer;
+#![allow(clippy::while_let_loop)]
+#![allow(dead_code)]
+
+mod bytecode;
+mod lixer;
 mod lixvm;
-mod parser;
 mod version;
 
 use std::env;
@@ -28,6 +30,7 @@ fn main() {
 fn run_julix(args: &[String]) {
     if args.is_empty() {
         eprintln!("usage: julix <file.jlx>");
+        eprintln!("       julix compile <file.jlx>");
         process::exit(1);
     }
 
@@ -51,6 +54,14 @@ fn run_julix(args: &[String]) {
             println!("JuJIT {}", version::JUJIT);
             return;
         }
+        "compile" => {
+            if args.len() < 2 {
+                eprintln!("usage: julix compile <file.jlx>");
+                process::exit(1);
+            }
+            compile_file(&args[1]);
+            return;
+        }
         _ => {}
     }
 
@@ -63,9 +74,36 @@ fn run_julix(args: &[String]) {
         }
     };
 
-    let tokens = lexer::token::lex(&source);
-    let statements = parser::parse(&tokens);
-    lixvm::interpreter::run(&statements);
+    let tokens = lixer::lexer::token::lex(&source);
+    let statements = lixer::parser::parse(&tokens);
+    let chunk = lixer::compiler::emitter::compile(&statements);
+    let mut machine = lixvm::machine::Machine::new(chunk);
+    machine.run();
+}
+
+fn compile_file(path: &str) {
+    let source = match fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error: cannot read {}: {}", path, e);
+            process::exit(1);
+        }
+    };
+
+    let tokens = lixer::lexer::token::lex(&source);
+    let statements = lixer::parser::parse(&tokens);
+    let chunk = lixer::compiler::emitter::compile(&statements);
+
+    let out_path = Path::new(path).with_extension("jlxr");
+    match bytecode::chunk::serialize(&chunk, &out_path) {
+        Ok(()) => {
+            println!("compiled {} -> {}", path, out_path.display());
+        }
+        Err(e) => {
+            eprintln!("error: cannot write {}: {}", out_path.display(), e);
+            process::exit(1);
+        }
+    }
 }
 
 fn run_lixvm(args: &[String]) {
@@ -73,11 +111,20 @@ fn run_lixvm(args: &[String]) {
         println!("LixVM {}", version::LIXVM);
         return;
     }
-    eprintln!(
-        "LixVM {}: standalone mode not yet implemented",
-        version::LIXVM
-    );
-    eprintln!("usage: julix <file.jlx>");
+    if args.is_empty() {
+        eprintln!("LixVM {}", version::LIXVM);
+        eprintln!("usage: lixvm <file.jlxr>");
+        process::exit(1);
+    }
+    let chunk = match bytecode::chunk::deserialize(&args[0]) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("error: cannot load {}: {}", args[0], e);
+            process::exit(1);
+        }
+    };
+    let mut machine = lixvm::machine::Machine::new(chunk);
+    machine.run();
 }
 
 fn run_jujit(args: &[String]) {
