@@ -1,10 +1,10 @@
 # Julix Syntax v0.0.2
 
-> Dynamic, script-first, GC-managed. Nhanh hơn Python, sâu hơn JS/Go để làm system. User không phải nghĩ memory.
+> Dynamic, script-first, GC-managed. Faster than Python, deeper than JS/Go for system work. The user does not think about memory.
 
 ## 1. Entry point
 
-Top-level là entry. Không có `main()`.
+Top-level is the entry. No `main()`.
 
 ```julix
 println("hello from julix");
@@ -12,23 +12,23 @@ println("hello from julix");
 
 ## 2. Literals
 
-| Loại | Cú pháp | Ví dụ |
+| Type | Syntax | Example |
 |---|---|---|
 | Int | decimal, hex, oct, bin, underscore | `42`, `0xFF`, `0o17`, `0b1010`, `1_000_000` |
-| Float | có dấu chấm | `3.14`, `1.0` |
+| Float | with decimal point | `3.14`, `1.0` |
 | Bool | `true` / `false` | |
 | String | `"..."` | `"hello\n"` |
 | Bytes | `b"..."` | `b"GET / HTTP/1.1\r\n"` |
 | Null | `null` | |
 | F-string | `f"..."` | `f"{x} = {y}"` |
 
-Runtime tự chọn width (i32/i64/u64/f64). User chỉ gõ `int`, `float`, không thấy `i32`/`i64`/`u8`/`f32`.
+The runtime picks the width (i32/i64/u64/f64). The user types `int`, `float`, and never sees `i32`/`i64`/`u8`/`f32`.
 
 ## 3. Variable
 
 ```julix
-const pi = 3.14;        // bất biến, gán 1 lần
-let count = 0;          // khả biến, gán lại được
+const pi = 3.14;        // immutable, assigned once
+let count = 0;          // mutable, can reassign
 count = count + 1;
 count++;
 count += 1;
@@ -36,25 +36,25 @@ count += 1;
 let big: int = 1_000_000;   // type optional
 ```
 
-| Keyword | Ý nghĩa |
+| Keyword | Meaning |
 |---|---|
-| `const` | bất biến |
-| `let` | khả biến |
+| `const` | immutable |
+| `let` | mutable |
 
 Compound assign: `+= -= *= /= %=`
-Increment/decrement: `++ --` (prefix + postfix)
+Increment/decrement: `++ --` (prefix and postfix)
 
 ## 4. Operators
 
 ```julix
-// số học
+// arithmetic
 a + b;
 a - b;
 a * b;
-a / b;      // int/int = int (truncate), có float = float
+a / b;      // int / int = int (truncated), mixed with float = float
 a % b;
 
-// so sánh
+// comparison
 a == b;
 a != b;
 a < b;
@@ -62,16 +62,16 @@ a > b;
 a <= b;
 a >= b;
 
-// logic (2 kiểu, chọn 1)
+// logic (two styles, pick one)
 a && b;
 a || b;
 !a;
-// hoặc
+// or
 a and b;
 a or b;
 not a;
 
-// bit
+// bitwise
 a & b;
 a | b;
 a ^ b;
@@ -79,10 +79,10 @@ a << b;
 a >> b;
 ```
 
-Strict bool. Không truthy/falsy. Không ép kiểu implicit.
+Strict bool. No truthy/falsy. No implicit coercion.
 
 ```julix
-if (1) { }          // error: 1 là int, không phải bool
+if (1) { }          // error: 1 is int, not bool
 if (x != 0) { }    // OK
 ```
 
@@ -113,10 +113,10 @@ break;
 continue;
 ```
 
-- `()` bắt buộc cho condition
-- `elif` thay `else if`
+- `()` required around the condition
+- `elif` instead of `else if`
 - `0..10` = range [0, 10), exclusive
-- `{}` optional cho single statement
+- `{}` optional for a single statement
 
 ```julix
 if (n < 2) return n;
@@ -145,10 +145,10 @@ print(fib(10));
 ```
 
 - `function` keyword, K&R braces
-- Param type optional (`: string`), infer mặc định
-- Return type optional (`: int`), infer mặc định
-- `return` để trả, implicit `null` nếu không return
-- `;` bắt buộc
+- Parameter type optional (`: string`), inferred by default
+- Return type optional (`: int`), inferred by default
+- `return` to return, implicit `null` if missing
+- `;` required
 - Recursion OK
 
 ## 7. Type
@@ -180,16 +180,16 @@ print(p.x);
 
 let s = Socket(fd: 3);
 s.write(b"hello");
-// hết scope -> deinit chạy -> close(fd)
+// out of scope -> deinit runs -> close(fd)
 ```
 
 - `type` keyword, K&R braces
-- Field type bắt buộc (`x: int`)
+- Field type required (`x: int`)
 - Method: `function name(self, ...) { ... }`
-- `deinit` là hook dọn resource, GC trigger, user không phải nghĩ
-- Constructor: `Type(field: value)`, không `new`
-- Copy on assign, không ownership/move
-- Memory do GC lo
+- `deinit` is a resource cleanup hook, triggered by GC, user does not think about it
+- Constructor: `Type(field: value)`, no `new`
+- Copy on assign, no ownership/move
+- Memory is handled by GC
 
 ## 8. Print
 
@@ -199,33 +199,33 @@ println("with newline");
 println(f"{x} = {y}");
 ```
 
-- `print()` không newline
-- `println()` có newline
-- `f"..."` f-string, `{expr}` chèn giá trị
+- `print()` no newline
+- `println()` with newline
+- `f"..."` f-string, `{expr}` inserts a value
 
 ## 9. Comment
 
 ```julix
-// comment 1 dòng
-// không slop, chỉ nêu constraint / gotcha / FIXME
+// single line comment
+// no slop, only state constraints / gotchas / FIXMEs
 ```
 
 - `//` only
-- Không `///`, không `//!`, không `#`, không block comment
+- No `///`, no `//!`, no `#`, no block comments
 
 ## 10. Code style
 
 - K&R braces
-- `;` bắt buộc
-- Không em-dash trong code/doc/commit
-- Comment `//` only, ngắn gọn, dễ hiểu, không slop
-- Tên hàm/biến tự nói thay comment
+- `;` required
+- No em-dash in code, docs, or commits
+- Comments `//` only, short, clear, no slop
+- Function and variable names speak for themselves
 
-## 11. Còn thiếu (sau này)
+## 11. Not yet defined (later)
 
-- list/map literal + index
+- list/map literal and indexing
 - error handling
-- FFI / syscall / buffer / raw ptr
+- FFI / syscall / buffer / raw pointer
 - module / import
 - closure / lambda
 - async / coroutines
