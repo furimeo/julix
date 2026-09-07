@@ -1,0 +1,24 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why is this needed? What problem does it solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should the feature do? Include code examples if possible.
+      render: julix
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

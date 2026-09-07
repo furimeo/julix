@@ -1,0 +1,48 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+  - type: input
+    id: version
+    attributes:
+      label: Julix version
+      description: Run `julix --version` and paste the output here
+      placeholder: "Julix 0.0.2 / LixVM 0.0.1 / JuJIT 0.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - Linux
+        - macOS
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: Code to reproduce
+      description: Minimal .jlx file that triggers the bug
+      render: julix
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include error messages if any
+    validations:
+      required: true
