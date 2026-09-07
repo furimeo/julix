@@ -12,6 +12,12 @@ pub enum Token {
     Else,
     True,
     False,
+    While,
+    For,
+    In,
+    Break,
+    Continue,
+    Dot,
     LParen,
     RParen,
     LBrace,
@@ -161,6 +167,11 @@ pub fn lex(src: &str) -> Vec<Token> {
                 "else" => out.push(Token::Else),
                 "true" => out.push(Token::True),
                 "false" => out.push(Token::False),
+                "while" => out.push(Token::While),
+                "for" => out.push(Token::For),
+                "in" => out.push(Token::In),
+                "break" => out.push(Token::Break),
+                "continue" => out.push(Token::Continue),
                 "and" => out.push(Token::And),
                 "or" => out.push(Token::Or),
                 "not" => out.push(Token::Not),
@@ -263,6 +274,16 @@ pub fn lex(src: &str) -> Vec<Token> {
             ';' => {
                 out.push(Token::Semicolon);
                 i += 1;
+            }
+            '.' => {
+                if i + 1 < chars.len() && chars[i + 1] == '.' {
+                    out.push(Token::Dot);
+                    out.push(Token::Dot);
+                    i += 2;
+                } else {
+                    eprintln!("lex error: unexpected char '.''");
+                    std::process::exit(1);
+                }
             }
             _ => {
                 eprintln!("lex error: unexpected char '{}'", c);
