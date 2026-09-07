@@ -1,4 +1,4 @@
-use crate::lixer::ast::statement::Statement;
+use crate::lixer::ast::statement::{ElifBranch, Statement};
 use crate::lixer::lexer::token::Token;
 use crate::lixer::parser::expression::Parser;
 
@@ -50,11 +50,65 @@ fn parse_statement(p: &mut Parser) -> Statement {
             expect_end(p);
             Statement::Const { name, expr }
         }
+        Token::If => parse_if(p),
         t => {
             eprintln!("parse error: expected statement, got {:?}", t);
             std::process::exit(1);
         }
     }
+}
+
+fn parse_if(p: &mut Parser) -> Statement {
+    p.advance();
+    p.expect(Token::LParen);
+    let condition = p.parse_expression();
+    p.expect(Token::RParen);
+    let then_body = parse_block(p);
+
+    let mut elif_branches = Vec::new();
+    let mut else_body = None;
+
+    loop {
+        p.skip_newlines();
+        match p.peek() {
+            Token::Elif => {
+                p.advance();
+                p.expect(Token::LParen);
+                let cond = p.parse_expression();
+                p.expect(Token::RParen);
+                let body = parse_block(p);
+                elif_branches.push(ElifBranch {
+                    condition: cond,
+                    body,
+                });
+            }
+            Token::Else => {
+                p.advance();
+                else_body = Some(parse_block(p));
+                break;
+            }
+            _ => break,
+        }
+    }
+
+    Statement::If {
+        condition,
+        then_body,
+        elif_branches,
+        else_body,
+    }
+}
+
+fn parse_block(p: &mut Parser) -> Vec<Statement> {
+    p.expect(Token::LBrace);
+    p.skip_newlines();
+    let mut stmts = Vec::new();
+    while !matches!(p.peek(), Token::RBrace | Token::Eof) {
+        stmts.push(parse_statement(p));
+        p.skip_newlines();
+    }
+    p.expect(Token::RBrace);
+    stmts
 }
 
 fn expect_ident(p: &mut Parser) -> String {

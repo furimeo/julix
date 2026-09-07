@@ -170,6 +170,8 @@ impl<'a> Parser<'a> {
         match self.advance() {
             Token::Int(n) => Expression::Int(n),
             Token::Str(s) => Expression::Str(s),
+            Token::True => Expression::Bool(true),
+            Token::False => Expression::Bool(false),
             Token::Ident(name) => Expression::Ident(name),
             Token::LParen => {
                 let expr = self.parse_expression();
