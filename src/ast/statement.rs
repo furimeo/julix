@@ -4,4 +4,6 @@ use crate::ast::expression::Expression;
 pub enum Statement {
     Print(Expression),
     PrintLn(Expression),
+    Let { name: String, expr: Expression },
+    Const { name: String, expr: Expression },
 }
