@@ -1,0 +1,23 @@
+// step 2: let/const + arithmetic
+const pi = 3;
+let x = 1 + 2 * 3;
+println(x);
+
+let y = (1 + 2) * 3;
+println(y);
+
+let z = 10 - 4;
+println(z);
+
+let w = 20 / 6;
+println(w);
+
+let r = 20 % 6;
+println(r);
+
+let a = 100;
+let b = a + 1;
+println(b);
+
+let s = "hello" + " " + "world";
+println(s);
