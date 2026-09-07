@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x86_64
+            archive: tar.gz
+          - os: windows-latest
+            platform: windows
+            arch: x86_64
+            archive: zip
+          - os: macos-latest
+            platform: macos
+            arch: x86_64
+            archive: tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Package (Linux/macOS)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          mkdir -p dist
+          cp target/release/julix dist/
+          cp scripts/install.sh dist/
+          tar -czf julix-${{ matrix.arch }}-${{ matrix.platform }}.tar.gz -C dist .
+
+      - name: Package (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item target/release/julix.exe dist/
+          Copy-Item scripts/install.ps1 dist/
+          Compress-Archive -Path dist/* -DestinationPath julix-${{ matrix.arch }}-${{ matrix.platform }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: julix-${{ matrix.arch }}-${{ matrix.platform }}
+          path: julix-${{ matrix.arch }}-${{ matrix.platform }}.*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          draft: false
+          prerelease: false
