@@ -1,70 +1,70 @@
 # Julix Versioning
 
-Julix co 3 version doc lap, biet ro thang nao thay doi.
+Julix has three independent versions, each tracking a different component.
 
 ## 1. Julix version
 
-Phien ban ngon ngu: cu phap, stdlib, semantic nhung gi user viet.
+The language version: syntax, standard library, and semantics of what the user writes.
 
-Vi du: `Julix 0.0.2`
+Example: `Julix 0.0.2`
 
-Thay doi khi:
-- them/sua cu phap
-- them/sua stdlib
-- break compatibility
+Changes when:
+- syntax is added or modified
+- standard library is added or modified
+- compatibility is broken
 
 ## 2. LixVM version
 
-Phien ban trinh chay code (interpreter + runtime + GC).
+The runtime version: interpreter, garbage collector, memory model, and runtime internals.
 
-Vi du: `LixVM 0.0.1`
+Example: `LixVM 0.0.1`
 
-Thay doi khi:
-- sua interpreter
-- sua GC
-- sua memory model
-- sua runtime internals
+Changes when:
+- interpreter is modified
+- garbage collector is modified
+- memory model is modified
+- runtime internals change
 
-Khong phu thuoc Julix version. LixVM co the chay nhieu Julix version.
+Independent of the Julix version. A single LixVM can run multiple Julix versions.
 
 ## 3. JuJIT version
 
-Phien ban trinh dich JIT.
+The JIT compiler version: codegen, optimization passes, and tier management.
 
-Vi du: `JuJIT 0.0.0` (chua co, phase 2)
+Example: `JuJIT 0.0.0` (not yet built, phase 2)
 
-Thay doi khi:
-- them/sua JIT tier
-- sua codegen
-- sua optimization
+Changes when:
+- a JIT tier is added or modified
+- codegen is modified
+- optimization is modified
 
-Khong phu thuoc LixVM version. JuJIT la layer tren LixVM.
+Independent of the LixVM version. JuJIT is a layer on top of LixVM.
 
-## Trang thai hien tai
+## Current status
 
-| Component | Version | Ghi chu |
+| Component | Version | Notes |
 |---|---|---|
-| Julix | 0.0.2 | syntax da chot, chua co stdlib |
-| LixVM | 0.0.0 | chua build |
-| JuJIT | 0.0.0 | chua build, phase 2 |
+| Julix | 0.0.2 | syntax locked, no standard library yet |
+| LixVM | 0.0.0 | not built yet |
+| JuJIT | 0.0.0 | not built yet, phase 2 |
 
 ## Format
 
-Semver: `MAJOR.MINOR.PATCH`
+Semantic versioning: `MAJOR.MINOR.PATCH`
 
-- MAJOR: break change
-- MINOR: them feature, khong break
-- PATCH: fix bug, khong break
+- MAJOR: breaking change
+- MINOR: new feature, no breakage
+- PATCH: bug fix, no breakage
 
 ## CLI
 
 ```sh
-julix --version        # in ca 3
+julix --version        # print all three
 # Julix 0.0.2
 # LixVM 0.0.0
 # JuJIT 0.0.0
 
-julix --julix-version  # chi Julix
-julix --lixvm-version  # chi LixVM
-julix --jujit-version  # chi JuJIT
+julix --julix-version  # only Julix
+julix --lixvm-version  # only LixVM
+julix --jujit-version  # only JuJIT
 ```
