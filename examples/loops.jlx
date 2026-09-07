@@ -1,0 +1,27 @@
+// step 4: while/for + break/continue
+let i = 0;
+while (i < 5) {
+    println(i);
+    i = i + 1;
+}
+
+for (j in 0..10) {
+    println(j);
+}
+
+let sum = 0;
+for (k in 0..100) {
+    sum = sum + k;
+}
+println(sum);
+
+for (n in 0..10) {
+    if (n == 3) { break; }
+    println(n);
+}
+
+for (n in 0..10) {
+    if (n == 5) { break; }
+    if (n % 2 == 0) { continue; }
+    println(n);
+}
