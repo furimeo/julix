@@ -2,6 +2,7 @@
 pub enum Value {
     Int(i64),
     Str(String),
+    Bool(bool),
 }
 
 impl Value {
@@ -9,6 +10,7 @@ impl Value {
         match self {
             Value::Int(n) => n.to_string(),
             Value::Str(s) => s.clone(),
+            Value::Bool(b) => b.to_string(),
         }
     }
 }
