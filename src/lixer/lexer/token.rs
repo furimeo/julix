@@ -20,6 +20,8 @@ pub enum Token {
     Dot,
     Function,
     Return,
+    Type,
+    Colon,
     Comma,
     LParen,
     RParen,
@@ -177,6 +179,7 @@ pub fn lex(src: &str) -> Vec<Token> {
                 "continue" => out.push(Token::Continue),
                 "function" => out.push(Token::Function),
                 "return" => out.push(Token::Return),
+                "type" => out.push(Token::Type),
                 "and" => out.push(Token::And),
                 "or" => out.push(Token::Or),
                 "not" => out.push(Token::Not),
@@ -278,6 +281,10 @@ pub fn lex(src: &str) -> Vec<Token> {
             }
             ';' => {
                 out.push(Token::Semicolon);
+                i += 1;
+            }
+            ':' => {
+                out.push(Token::Colon);
                 i += 1;
             }
             ',' => {
