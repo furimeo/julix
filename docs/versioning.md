@@ -44,8 +44,8 @@ Independent of the LixVM version. JuJIT is a layer on top of LixVM.
 
 | Component | Version | Notes |
 |---|---|---|
-| Julix | 0.0.4 | if/elif/else, while/for, break/continue, arithmetic, comparison, logic |
-| LixVM | 0.0.3 | bytecode VM, jump patching, loop support |
+| Julix | 0.0.5 | function def, call, return, parameters |
+| LixVM | 0.0.4 | call stack, function table, frame save/restore |
 | JuJIT | 0.0.0 | not built yet, phase 2 |
 
 ## Format
