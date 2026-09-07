@@ -1,0 +1,13 @@
+// step 7: deinit hook (placeholder, GC-triggered in phase 1)
+type File {
+    fd: int;
+
+    function deinit(self) {
+        println("closing fd");
+        println(self.fd);
+    }
+}
+
+let f = File(fd: 3);
+println(f.fd);
+// deinit runs when object goes out of scope (phase 1)
