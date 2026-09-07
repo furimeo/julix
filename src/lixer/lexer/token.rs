@@ -18,6 +18,9 @@ pub enum Token {
     Break,
     Continue,
     Dot,
+    Function,
+    Return,
+    Comma,
     LParen,
     RParen,
     LBrace,
@@ -172,6 +175,8 @@ pub fn lex(src: &str) -> Vec<Token> {
                 "in" => out.push(Token::In),
                 "break" => out.push(Token::Break),
                 "continue" => out.push(Token::Continue),
+                "function" => out.push(Token::Function),
+                "return" => out.push(Token::Return),
                 "and" => out.push(Token::And),
                 "or" => out.push(Token::Or),
                 "not" => out.push(Token::Not),
@@ -273,6 +278,10 @@ pub fn lex(src: &str) -> Vec<Token> {
             }
             ';' => {
                 out.push(Token::Semicolon);
+                i += 1;
+            }
+            ',' => {
+                out.push(Token::Comma);
                 i += 1;
             }
             '.' => {
