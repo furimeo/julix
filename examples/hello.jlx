@@ -1,0 +1,18 @@
+// Julix v0.0.2 example
+println("hello from julix");
+print("no newline");
+println(" continued");
+print(42);
+println("");
+print(1 + 2);
+println("");
+print(0xFF);
+println("");
+print("a" + "b");
+println("");
+print(0o17);
+println("");
+print(0b1010);
+println("");
+print(1_000_000);
+println("");
