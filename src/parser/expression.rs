@@ -40,21 +40,66 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_expression(&mut self) -> Expression {
-        let mut left = self.parse_term();
-        while matches!(self.peek(), Token::Plus) {
-            self.advance();
-            let right = self.parse_term();
-            left = Expression::Add(Box::new(left), Box::new(right));
+        self.parse_additive()
+    }
+
+    fn parse_additive(&mut self) -> Expression {
+        let mut left = self.parse_multiplicative();
+        loop {
+            match self.peek() {
+                Token::Plus => {
+                    self.advance();
+                    let right = self.parse_multiplicative();
+                    left = Expression::Add(Box::new(left), Box::new(right));
+                }
+                Token::Minus => {
+                    self.advance();
+                    let right = self.parse_multiplicative();
+                    left = Expression::Sub(Box::new(left), Box::new(right));
+                }
+                _ => break,
+            }
         }
         left
     }
 
-    fn parse_term(&mut self) -> Expression {
+    fn parse_multiplicative(&mut self) -> Expression {
+        let mut left = self.parse_primary();
+        loop {
+            match self.peek() {
+                Token::Star => {
+                    self.advance();
+                    let right = self.parse_primary();
+                    left = Expression::Mul(Box::new(left), Box::new(right));
+                }
+                Token::Slash => {
+                    self.advance();
+                    let right = self.parse_primary();
+                    left = Expression::Div(Box::new(left), Box::new(right));
+                }
+                Token::Percent => {
+                    self.advance();
+                    let right = self.parse_primary();
+                    left = Expression::Mod(Box::new(left), Box::new(right));
+                }
+                _ => break,
+            }
+        }
+        left
+    }
+
+    fn parse_primary(&mut self) -> Expression {
         match self.advance() {
             Token::Int(n) => Expression::Int(n),
             Token::Str(s) => Expression::Str(s),
+            Token::Ident(name) => Expression::Ident(name),
+            Token::LParen => {
+                let expr = self.parse_expression();
+                self.expect(Token::RParen);
+                expr
+            }
             t => {
-                eprintln!("parse error: expected literal, got {:?}", t);
+                eprintln!("parse error: expected literal or identifier, got {:?}", t);
                 std::process::exit(1);
             }
         }

@@ -34,8 +34,34 @@ fn parse_statement(p: &mut Parser) -> Statement {
             expect_end(p);
             Statement::PrintLn(expr)
         }
+        Token::Let => {
+            p.advance();
+            let name = expect_ident(p);
+            p.expect(Token::Assign);
+            let expr = p.parse_expression();
+            expect_end(p);
+            Statement::Let { name, expr }
+        }
+        Token::Const => {
+            p.advance();
+            let name = expect_ident(p);
+            p.expect(Token::Assign);
+            let expr = p.parse_expression();
+            expect_end(p);
+            Statement::Const { name, expr }
+        }
         t => {
-            eprintln!("parse error: expected print or println, got {:?}", t);
+            eprintln!("parse error: expected statement, got {:?}", t);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn expect_ident(p: &mut Parser) -> String {
+    match p.advance() {
+        Token::Ident(name) => name,
+        t => {
+            eprintln!("parse error: expected identifier, got {:?}", t);
             std::process::exit(1);
         }
     }
