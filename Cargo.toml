@@ -1,6 +1,6 @@
 [package]
 name = "julix"
-version = "0.0.5"
+version = "0.0.6"
 edition = "2021"
 authors = ["Le Hung Quang Minh (furimeo) <224610210+furimeo@users.noreply.github.com>"]
 license = "MIT"

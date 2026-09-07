@@ -44,8 +44,8 @@ Independent of the LixVM version. JuJIT is a layer on top of LixVM.
 
 | Component | Version | Notes |
 |---|---|---|
-| Julix | 0.0.5 | function def, call, return, parameters |
-| LixVM | 0.0.4 | call stack, function table, frame save/restore |
+| Julix | 0.0.6 | type definition, constructor, field access, method call |
+| LixVM | 0.0.5 | Object value, Construct/GetField/SetField/MethodCall bytecode |
 | JuJIT | 0.0.0 | not built yet, phase 2 |
 
 ## Format
