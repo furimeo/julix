@@ -2,11 +2,19 @@
 pub enum Token {
     Int(i64),
     Str(String),
+    Ident(String),
     Print,
     PrintLn,
+    Let,
+    Const,
     LParen,
     RParen,
     Plus,
+    Minus,
+    Star,
+    Slash,
+    Percent,
+    Assign,
     Semicolon,
     Newline,
     Eof,
@@ -127,10 +135,9 @@ pub fn lex(src: &str) -> Vec<Token> {
             match word.as_str() {
                 "print" => out.push(Token::Print),
                 "println" => out.push(Token::PrintLn),
-                _ => {
-                    eprintln!("lex error: unknown identifier '{}'", word);
-                    std::process::exit(1);
-                }
+                "let" => out.push(Token::Let),
+                "const" => out.push(Token::Const),
+                _ => out.push(Token::Ident(word)),
             }
             continue;
         }
@@ -146,6 +153,26 @@ pub fn lex(src: &str) -> Vec<Token> {
             }
             '+' => {
                 out.push(Token::Plus);
+                i += 1;
+            }
+            '-' => {
+                out.push(Token::Minus);
+                i += 1;
+            }
+            '*' => {
+                out.push(Token::Star);
+                i += 1;
+            }
+            '/' => {
+                out.push(Token::Slash);
+                i += 1;
+            }
+            '%' => {
+                out.push(Token::Percent);
+                i += 1;
+            }
+            '=' => {
+                out.push(Token::Assign);
                 i += 1;
             }
             ';' => {
