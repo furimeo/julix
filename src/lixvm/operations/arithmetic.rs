@@ -48,7 +48,7 @@ pub fn rem(l: Value, r: Value) -> Value {
     }
 }
 
-fn type_error(op: &str, a: Value, b: Value) -> ! {
+pub(super) fn type_error(op: &str, a: Value, b: Value) -> ! {
     eprintln!("type error: cannot {} {:?} and {:?}", op, a, b);
     std::process::exit(1);
 }
