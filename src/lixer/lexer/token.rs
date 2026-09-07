@@ -297,8 +297,8 @@ pub fn lex(src: &str) -> Vec<Token> {
                     out.push(Token::Dot);
                     i += 2;
                 } else {
-                    eprintln!("lex error: unexpected char '.''");
-                    std::process::exit(1);
+                    out.push(Token::Dot);
+                    i += 1;
                 }
             }
             _ => {

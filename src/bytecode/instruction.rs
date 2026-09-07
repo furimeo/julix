@@ -42,6 +42,12 @@ pub enum Instruction {
     Call(String, usize),
     Return,
 
+    // objects
+    Construct(String, Vec<String>),
+    GetField(String),
+    SetField(String),
+    MethodCall(String, usize),
+
     // misc
     Pop,
     Halt,

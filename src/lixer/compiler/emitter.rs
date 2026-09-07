@@ -143,6 +143,40 @@ fn compile_statement(
             compile_expression(expr, chunk);
             chunk.push(Instruction::Pop);
         }
+        Statement::TypeDef {
+            name,
+            fields,
+            methods,
+        } => {
+            for method in methods {
+                let mangled = format!("{}.{}", name, method.name);
+                let mut func_chunk = Chunk::new();
+                for s in &method.body {
+                    compile_statement(s, &mut func_chunk, functions, None);
+                }
+                func_chunk.push(Instruction::Return);
+                functions.insert(
+                    mangled,
+                    FunctionDef {
+                        chunk: func_chunk,
+                        params: method.params.clone(),
+                    },
+                );
+            }
+            let _ = fields;
+        }
+        Statement::FieldAssign {
+            object,
+            field,
+            expr,
+        } => {
+            compile_expression(object, chunk);
+            compile_expression(expr, chunk);
+            chunk.push(Instruction::SetField(field.clone()));
+            if let Expression::Ident(name) = object {
+                chunk.push(Instruction::StoreVar(name.clone()));
+            }
+        }
         Statement::Break => {
             if loop_info.is_some() {
                 chunk.push(Instruction::Jump(BREAK_SENTINEL));
@@ -262,6 +296,28 @@ fn compile_expression(expr: &Expression, chunk: &mut Chunk) {
                 eprintln!("error: cannot call non-identifier");
                 std::process::exit(1);
             }
+        }
+        Expression::FieldAccess { object, field } => {
+            compile_expression(object, chunk);
+            chunk.push(Instruction::GetField(field.clone()));
+        }
+        Expression::MethodCall {
+            object,
+            method,
+            args,
+        } => {
+            compile_expression(object, chunk);
+            for arg in args {
+                compile_expression(arg, chunk);
+            }
+            chunk.push(Instruction::MethodCall(method.clone(), args.len()));
+        }
+        Expression::Construct { type_name, fields } => {
+            let field_names: Vec<String> = fields.iter().map(|(n, _)| n.clone()).collect();
+            for (_, e) in fields {
+                compile_expression(e, chunk);
+            }
+            chunk.push(Instruction::Construct(type_name.clone(), field_names));
         }
     }
 }

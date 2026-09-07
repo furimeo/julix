@@ -134,6 +134,37 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
             (52u8, payload)
         }
         Instruction::Return => (53u8, vec![]),
+        Instruction::Construct(type_name, field_names) => {
+            let bytes = type_name.as_bytes();
+            let mut payload = (bytes.len() as u32).to_le_bytes().to_vec();
+            payload.extend_from_slice(bytes);
+            payload.extend_from_slice(&(field_names.len() as u32).to_le_bytes());
+            for name in field_names {
+                let nb = name.as_bytes();
+                payload.extend_from_slice(&(nb.len() as u32).to_le_bytes());
+                payload.extend_from_slice(nb);
+            }
+            (54u8, payload)
+        }
+        Instruction::GetField(field) => {
+            let bytes = field.as_bytes();
+            let mut payload = (bytes.len() as u32).to_le_bytes().to_vec();
+            payload.extend_from_slice(bytes);
+            (55u8, payload)
+        }
+        Instruction::SetField(field) => {
+            let bytes = field.as_bytes();
+            let mut payload = (bytes.len() as u32).to_le_bytes().to_vec();
+            payload.extend_from_slice(bytes);
+            (56u8, payload)
+        }
+        Instruction::MethodCall(method, argc) => {
+            let bytes = method.as_bytes();
+            let mut payload = (bytes.len() as u32).to_le_bytes().to_vec();
+            payload.extend_from_slice(bytes);
+            payload.extend_from_slice(&(*argc as u32).to_le_bytes());
+            (57u8, payload)
+        }
         Instruction::Pop => (60u8, vec![]),
         Instruction::Halt => (99u8, vec![]),
     };
@@ -221,6 +252,48 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
             (Instruction::Call(name, argc), pos + 4 + len + 4)
         }
         53 => (Instruction::Return, pos),
+        54 => {
+            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
+            let type_name = String::from_utf8_lossy(&data[pos + 4..pos + 4 + len]).to_string();
+            let mut p = pos + 4 + len;
+            let nfields =
+                u32::from_le_bytes([data[p], data[p + 1], data[p + 2], data[p + 3]]) as usize;
+            p += 4;
+            let mut field_names = Vec::new();
+            for _ in 0..nfields {
+                let nlen =
+                    u32::from_le_bytes([data[p], data[p + 1], data[p + 2], data[p + 3]]) as usize;
+                p += 4;
+                field_names.push(String::from_utf8_lossy(&data[p..p + nlen]).to_string());
+                p += nlen;
+            }
+            (Instruction::Construct(type_name, field_names), p)
+        }
+        55 => {
+            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
+            let field = String::from_utf8_lossy(&data[pos + 4..pos + 4 + len]).to_string();
+            (Instruction::GetField(field), pos + 4 + len)
+        }
+        56 => {
+            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
+            let field = String::from_utf8_lossy(&data[pos + 4..pos + 4 + len]).to_string();
+            (Instruction::SetField(field), pos + 4 + len)
+        }
+        57 => {
+            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
+            let method = String::from_utf8_lossy(&data[pos + 4..pos + 4 + len]).to_string();
+            let argc = u32::from_le_bytes([
+                data[pos + 4 + len],
+                data[pos + 5 + len],
+                data[pos + 6 + len],
+                data[pos + 7 + len],
+            ]) as usize;
+            (Instruction::MethodCall(method, argc), pos + 4 + len + 4)
+        }
         60 => (Instruction::Pop, pos),
         99 => (Instruction::Halt, pos),
         _ => {

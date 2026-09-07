@@ -199,27 +199,94 @@ impl<'a> Parser<'a> {
                 std::process::exit(1);
             }
         };
-        self.parse_call(expr)
+        self.parse_postfix(expr)
     }
 
-    fn parse_call(&mut self, callee: Expression) -> Expression {
-        let mut expr = callee;
-        while matches!(self.peek(), Token::LParen) {
-            self.advance();
-            let mut args = Vec::new();
-            if !matches!(self.peek(), Token::RParen) {
-                args.push(self.parse_expression());
-                while matches!(self.peek(), Token::Comma) {
+    fn parse_postfix(&mut self, base: Expression) -> Expression {
+        let mut expr = base;
+        loop {
+            match self.peek() {
+                Token::LParen => {
                     self.advance();
-                    args.push(self.parse_expression());
+                    if self.is_named_args() {
+                        let mut named_args = Vec::new();
+                        if !matches!(self.peek(), Token::RParen) {
+                            named_args.push(self.parse_named_arg());
+                            while matches!(self.peek(), Token::Comma) {
+                                self.advance();
+                                named_args.push(self.parse_named_arg());
+                            }
+                        }
+                        self.expect(Token::RParen);
+                        if let Expression::Ident(name) = &expr {
+                            expr = Expression::Construct {
+                                type_name: name.clone(),
+                                fields: named_args,
+                            };
+                        }
+                    } else {
+                        let mut args = Vec::new();
+                        if !matches!(self.peek(), Token::RParen) {
+                            args.push(self.parse_expression());
+                            while matches!(self.peek(), Token::Comma) {
+                                self.advance();
+                                args.push(self.parse_expression());
+                            }
+                        }
+                        self.expect(Token::RParen);
+                        if let Expression::FieldAccess { object, field } = &expr {
+                            expr = Expression::MethodCall {
+                                object: object.clone(),
+                                method: field.clone(),
+                                args,
+                            };
+                        } else {
+                            expr = Expression::Call {
+                                callee: Box::new(expr),
+                                args,
+                            };
+                        }
+                    }
                 }
+                Token::Dot => {
+                    self.advance();
+                    let field = match self.advance() {
+                        Token::Ident(name) => name,
+                        t => {
+                            eprintln!("parse error: expected field name, got {:?}", t);
+                            std::process::exit(1);
+                        }
+                    };
+                    expr = Expression::FieldAccess {
+                        object: Box::new(expr),
+                        field,
+                    };
+                }
+                _ => break,
             }
-            self.expect(Token::RParen);
-            expr = Expression::Call {
-                callee: Box::new(expr),
-                args,
-            };
         }
         expr
+    }
+
+    fn is_named_args(&self) -> bool {
+        if let Token::Ident(_) = self.peek() {
+            if let Some(Token::Colon) = self.tokens.get(self.pos + 1) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn parse_named_arg(&mut self) -> (String, Expression) {
+        let name = match self.advance() {
+            Token::Ident(name) => name,
+            t => {
+                eprintln!("parse error: expected argument name, got {:?}", t);
+                std::process::exit(1);
+            }
+        };
+        self.expect(Token::Colon);
+        let expr = self.parse_expression();
+        (name, expr)
     }
 }

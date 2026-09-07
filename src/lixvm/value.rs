@@ -13,7 +13,10 @@ impl Value {
             Value::Str(s) => s.clone(),
             Value::Bool(b) => b.to_string(),
             Value::Object(type_name, fields) => {
-                let pairs: Vec<String> = fields.iter().map(|(k, v)| format!("{}: {}", k, v.stringify())).collect();
+                let pairs: Vec<String> = fields
+                    .iter()
+                    .map(|(k, v)| format!("{}: {}", k, v.stringify()))
+                    .collect();
                 format!("{}({})", type_name, pairs.join(", "))
             }
         }

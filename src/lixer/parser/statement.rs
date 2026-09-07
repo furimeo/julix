@@ -1,5 +1,5 @@
 use crate::lixer::ast::expression::Expression;
-use crate::lixer::ast::statement::{ElifBranch, Statement};
+use crate::lixer::ast::statement::{ElifBranch, FunctionDef, Statement};
 use crate::lixer::lexer::token::Token;
 use crate::lixer::parser::expression::Parser;
 
@@ -56,6 +56,7 @@ fn parse_statement(p: &mut Parser) -> Statement {
         Token::For => parse_for(p),
         Token::Function => parse_function(p),
         Token::Return => parse_return(p),
+        Token::Type => parse_type(p),
         Token::Break => {
             p.advance();
             expect_end(p);
@@ -69,13 +70,24 @@ fn parse_statement(p: &mut Parser) -> Statement {
         Token::Ident(_) => {
             let expr = p.parse_expression();
             if matches!(p.peek(), Token::Assign) {
+                p.advance();
+                let value = p.parse_expression();
+                expect_end(p);
                 if let Expression::Ident(name) = &expr {
-                    let name = name.clone();
-                    p.advance();
-                    let value = p.parse_expression();
-                    expect_end(p);
-                    return Statement::Assign { name, expr: value };
+                    return Statement::Assign {
+                        name: name.clone(),
+                        expr: value,
+                    };
                 }
+                if let Expression::FieldAccess { object, field } = &expr {
+                    return Statement::FieldAssign {
+                        object: (**object).clone(),
+                        field: field.clone(),
+                        expr: value,
+                    };
+                }
+                eprintln!("error: cannot assign to this expression");
+                std::process::exit(1);
             }
             expect_end(p);
             Statement::Expr(expr)
@@ -165,6 +177,57 @@ fn parse_for(p: &mut Parser) -> Statement {
         start,
         end,
         body,
+    }
+}
+
+fn parse_type(p: &mut Parser) -> Statement {
+    p.advance();
+    let name = expect_ident(p);
+    p.expect(Token::LBrace);
+    p.skip_newlines();
+
+    let mut fields = Vec::new();
+    let mut methods = Vec::new();
+
+    while !matches!(p.peek(), Token::RBrace | Token::Eof) {
+        match p.peek() {
+            Token::Function => {
+                p.advance();
+                let mname = expect_ident(p);
+                p.expect(Token::LParen);
+                let mut params = Vec::new();
+                if !matches!(p.peek(), Token::RParen) {
+                    params.push(expect_ident(p));
+                    while matches!(p.peek(), Token::Comma) {
+                        p.advance();
+                        params.push(expect_ident(p));
+                    }
+                }
+                p.expect(Token::RParen);
+                let body = parse_block(p);
+                methods.push(FunctionDef {
+                    name: mname,
+                    params,
+                    body,
+                });
+                p.skip_newlines();
+            }
+            _ => {
+                let field_name = expect_ident(p);
+                p.expect(Token::Colon);
+                let field_type = expect_ident(p);
+                expect_end(p);
+                p.skip_newlines();
+                fields.push((field_name, field_type));
+            }
+        }
+    }
+
+    p.expect(Token::RBrace);
+    Statement::TypeDef {
+        name,
+        fields,
+        methods,
     }
 }
 
