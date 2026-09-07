@@ -7,14 +7,33 @@ pub enum Token {
     PrintLn,
     Let,
     Const,
+    If,
+    Elif,
+    Else,
+    True,
+    False,
     LParen,
     RParen,
+    LBrace,
+    RBrace,
     Plus,
     Minus,
     Star,
     Slash,
     Percent,
     Assign,
+    EqEq,
+    NotEq,
+    Lt,
+    Gt,
+    LtEq,
+    GtEq,
+    AndAnd,
+    OrOr,
+    Bang,
+    And,
+    Or,
+    Not,
     Semicolon,
     Newline,
     Eof,
@@ -137,6 +156,14 @@ pub fn lex(src: &str) -> Vec<Token> {
                 "println" => out.push(Token::PrintLn),
                 "let" => out.push(Token::Let),
                 "const" => out.push(Token::Const),
+                "if" => out.push(Token::If),
+                "elif" => out.push(Token::Elif),
+                "else" => out.push(Token::Else),
+                "true" => out.push(Token::True),
+                "false" => out.push(Token::False),
+                "and" => out.push(Token::And),
+                "or" => out.push(Token::Or),
+                "not" => out.push(Token::Not),
                 _ => out.push(Token::Ident(word)),
             }
             continue;
@@ -149,6 +176,14 @@ pub fn lex(src: &str) -> Vec<Token> {
             }
             ')' => {
                 out.push(Token::RParen);
+                i += 1;
+            }
+            '{' => {
+                out.push(Token::LBrace);
+                i += 1;
+            }
+            '}' => {
+                out.push(Token::RBrace);
                 i += 1;
             }
             '+' => {
@@ -172,8 +207,58 @@ pub fn lex(src: &str) -> Vec<Token> {
                 i += 1;
             }
             '=' => {
-                out.push(Token::Assign);
-                i += 1;
+                if i + 1 < chars.len() && chars[i + 1] == '=' {
+                    out.push(Token::EqEq);
+                    i += 2;
+                } else {
+                    out.push(Token::Assign);
+                    i += 1;
+                }
+            }
+            '!' => {
+                if i + 1 < chars.len() && chars[i + 1] == '=' {
+                    out.push(Token::NotEq);
+                    i += 2;
+                } else {
+                    out.push(Token::Bang);
+                    i += 1;
+                }
+            }
+            '<' => {
+                if i + 1 < chars.len() && chars[i + 1] == '=' {
+                    out.push(Token::LtEq);
+                    i += 2;
+                } else {
+                    out.push(Token::Lt);
+                    i += 1;
+                }
+            }
+            '>' => {
+                if i + 1 < chars.len() && chars[i + 1] == '=' {
+                    out.push(Token::GtEq);
+                    i += 2;
+                } else {
+                    out.push(Token::Gt);
+                    i += 1;
+                }
+            }
+            '&' => {
+                if i + 1 < chars.len() && chars[i + 1] == '&' {
+                    out.push(Token::AndAnd);
+                    i += 2;
+                } else {
+                    eprintln!("lex error: unexpected char '&'");
+                    std::process::exit(1);
+                }
+            }
+            '|' => {
+                if i + 1 < chars.len() && chars[i + 1] == '|' {
+                    out.push(Token::OrOr);
+                    i += 2;
+                } else {
+                    eprintln!("lex error: unexpected char '|'");
+                    std::process::exit(1);
+                }
             }
             ';' => {
                 out.push(Token::Semicolon);
