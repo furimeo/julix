@@ -30,6 +30,10 @@ pub enum Statement {
     },
     Break,
     Continue,
+    Assign {
+        name: String,
+        expr: Expression,
+    },
 }
 
 #[derive(Debug, Clone)]

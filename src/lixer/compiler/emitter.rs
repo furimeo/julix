@@ -3,17 +3,19 @@ use crate::bytecode::instruction::Instruction;
 use crate::lixer::ast::expression::Expression;
 use crate::lixer::ast::statement::Statement;
 
+const BREAK_SENTINEL: usize = usize::MAX;
+const CONTINUE_SENTINEL: usize = usize::MAX - 1;
+
 pub fn compile(stmts: &[Statement]) -> Chunk {
     let mut chunk = Chunk::new();
     for stmt in stmts {
-        compile_statement(stmt, &mut chunk);
+        compile_statement(stmt, &mut chunk, None);
     }
     chunk.push(Instruction::Halt);
-    patch_jumps(&mut chunk);
     chunk
 }
 
-fn compile_statement(stmt: &Statement, chunk: &mut Chunk) {
+fn compile_statement(stmt: &Statement, chunk: &mut Chunk, loop_info: Option<(usize, usize)>) {
     match stmt {
         Statement::Print(expr) => {
             compile_expression(expr, chunk);
@@ -27,6 +29,10 @@ fn compile_statement(stmt: &Statement, chunk: &mut Chunk) {
             compile_expression(expr, chunk);
             chunk.push(Instruction::StoreVar(name.clone()));
         }
+        Statement::Assign { name, expr } => {
+            compile_expression(expr, chunk);
+            chunk.push(Instruction::StoreVar(name.clone()));
+        }
         Statement::If {
             condition,
             then_body,
@@ -37,35 +43,103 @@ fn compile_statement(stmt: &Statement, chunk: &mut Chunk) {
             let jump_false = chunk.len();
             chunk.push(Instruction::JumpIfFalse(0));
             for s in then_body {
-                compile_statement(s, chunk);
+                compile_statement(s, chunk, loop_info);
             }
             let jump_end = chunk.len();
             chunk.push(Instruction::Jump(0));
             chunk.code[jump_false] = Instruction::JumpIfFalse(chunk.len());
-            if let Some(branch) = elif_branches.iter().next() {
+
+            for branch in elif_branches {
                 compile_expression(&branch.condition, chunk);
                 let jf = chunk.len();
                 chunk.push(Instruction::JumpIfFalse(0));
                 for s in &branch.body {
-                    compile_statement(s, chunk);
+                    compile_statement(s, chunk, loop_info);
                 }
                 let je = chunk.len();
                 chunk.push(Instruction::Jump(0));
                 chunk.code[jf] = Instruction::JumpIfFalse(chunk.len());
-                if let Some(else_body) = else_body {
-                    for s in else_body {
-                        compile_statement(s, chunk);
-                    }
-                }
                 chunk.code[je] = Instruction::Jump(chunk.len());
-                return;
             }
+
             if let Some(else_body) = else_body {
                 for s in else_body {
-                    compile_statement(s, chunk);
+                    compile_statement(s, chunk, loop_info);
                 }
             }
             chunk.code[jump_end] = Instruction::Jump(chunk.len());
+        }
+        Statement::While { condition, body } => {
+            let loop_start = chunk.len();
+            compile_expression(condition, chunk);
+            let jump_exit = chunk.len();
+            chunk.push(Instruction::JumpIfFalse(0));
+            for s in body {
+                compile_statement(s, chunk, Some((loop_start, 0)));
+            }
+            chunk.push(Instruction::Jump(loop_start));
+            let loop_end = chunk.len();
+            chunk.code[jump_exit] = Instruction::JumpIfFalse(loop_end);
+            patch_loop_jumps(chunk, loop_start, loop_start, loop_end);
+        }
+        Statement::For {
+            var,
+            start,
+            end,
+            body,
+        } => {
+            compile_expression(start, chunk);
+            chunk.push(Instruction::StoreVar(var.clone()));
+            compile_expression(end, chunk);
+            chunk.push(Instruction::StoreVar(format!("__end_{}", var)));
+            let loop_start = chunk.len();
+            chunk.push(Instruction::LoadVar(var.clone()));
+            chunk.push(Instruction::LoadVar(format!("__end_{}", var)));
+            chunk.push(Instruction::Lt);
+            let jump_exit = chunk.len();
+            chunk.push(Instruction::JumpIfFalse(0));
+            for s in body {
+                compile_statement(s, chunk, Some((loop_start, 0)));
+            }
+            let continue_target = chunk.len();
+            chunk.push(Instruction::LoadVar(var.clone()));
+            chunk.push(Instruction::LoadInt(1));
+            chunk.push(Instruction::Add);
+            chunk.push(Instruction::StoreVar(var.clone()));
+            chunk.push(Instruction::Jump(loop_start));
+            let loop_end = chunk.len();
+            chunk.code[jump_exit] = Instruction::JumpIfFalse(loop_end);
+            patch_loop_jumps(chunk, loop_start, continue_target, loop_end);
+        }
+        Statement::Break => {
+            if loop_info.is_some() {
+                chunk.push(Instruction::Jump(BREAK_SENTINEL));
+            } else {
+                eprintln!("error: break outside loop");
+                std::process::exit(1);
+            }
+        }
+        Statement::Continue => {
+            if loop_info.is_some() {
+                chunk.push(Instruction::Jump(CONTINUE_SENTINEL));
+            } else {
+                eprintln!("error: continue outside loop");
+                std::process::exit(1);
+            }
+        }
+    }
+}
+
+fn patch_loop_jumps(chunk: &mut Chunk, loop_start: usize, continue_target: usize, loop_end: usize) {
+    for i in loop_start..loop_end {
+        match &chunk.code[i] {
+            Instruction::Jump(BREAK_SENTINEL) => {
+                chunk.code[i] = Instruction::Jump(loop_end);
+            }
+            Instruction::Jump(CONTINUE_SENTINEL) => {
+                chunk.code[i] = Instruction::Jump(continue_target);
+            }
+            _ => {}
         }
     }
 }
@@ -145,7 +219,6 @@ fn compile_expression(expr: &Expression, chunk: &mut Chunk) {
             compile_expression(e, chunk);
             chunk.push(Instruction::Not);
         }
+        Expression::Range(_, _) => {}
     }
 }
-
-fn patch_jumps(_chunk: &mut Chunk) {}

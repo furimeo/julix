@@ -51,6 +51,26 @@ fn parse_statement(p: &mut Parser) -> Statement {
             Statement::Const { name, expr }
         }
         Token::If => parse_if(p),
+        Token::While => parse_while(p),
+        Token::For => parse_for(p),
+        Token::Break => {
+            p.advance();
+            expect_end(p);
+            Statement::Break
+        }
+        Token::Continue => {
+            p.advance();
+            expect_end(p);
+            Statement::Continue
+        }
+        Token::Ident(name) => {
+            let name = name.clone();
+            p.advance();
+            p.expect(Token::Assign);
+            let expr = p.parse_expression();
+            expect_end(p);
+            Statement::Assign { name, expr }
+        }
         t => {
             eprintln!("parse error: expected statement, got {:?}", t);
             std::process::exit(1);
@@ -109,6 +129,34 @@ fn parse_block(p: &mut Parser) -> Vec<Statement> {
     }
     p.expect(Token::RBrace);
     stmts
+}
+
+fn parse_while(p: &mut Parser) -> Statement {
+    p.advance();
+    p.expect(Token::LParen);
+    let condition = p.parse_expression();
+    p.expect(Token::RParen);
+    let body = parse_block(p);
+    Statement::While { condition, body }
+}
+
+fn parse_for(p: &mut Parser) -> Statement {
+    p.advance();
+    p.expect(Token::LParen);
+    let var = expect_ident(p);
+    p.expect(Token::In);
+    let start = p.parse_expression();
+    p.expect(Token::Dot);
+    p.expect(Token::Dot);
+    let end = p.parse_expression();
+    p.expect(Token::RParen);
+    let body = parse_block(p);
+    Statement::For {
+        var,
+        start,
+        end,
+        body,
+    }
 }
 
 fn expect_ident(p: &mut Parser) -> String {
