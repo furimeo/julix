@@ -1,0 +1,16 @@
+[package]
+name = "julix"
+version = "0.0.2"
+edition = "2021"
+authors = ["Le Hung Quang Minh (furimeo) <224610210+furimeo@users.noreply.github.com>"]
+license = "MIT"
+description = "Dynamic, script-first, GC-managed. Faster than Python, deeper than JS/Go for system work."
+
+[[bin]]
+name = "julix"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
