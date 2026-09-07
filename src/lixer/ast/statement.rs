@@ -18,6 +18,18 @@ pub enum Statement {
         elif_branches: Vec<ElifBranch>,
         else_body: Option<Vec<Statement>>,
     },
+    While {
+        condition: Expression,
+        body: Vec<Statement>,
+    },
+    For {
+        var: String,
+        start: Expression,
+        end: Expression,
+        body: Vec<Statement>,
+    },
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone)]
