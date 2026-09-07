@@ -73,7 +73,10 @@ fn run_lixvm(args: &[String]) {
         println!("LixVM {}", version::LIXVM);
         return;
     }
-    eprintln!("LixVM {}: standalone mode not yet implemented", version::LIXVM);
+    eprintln!(
+        "LixVM {}: standalone mode not yet implemented",
+        version::LIXVM
+    );
     eprintln!("usage: julix <file.jlx>");
 }
 

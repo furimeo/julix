@@ -45,23 +45,40 @@ pub fn lex(src: &str) -> Vec<Token> {
                 while i < chars.len() && (chars[i].is_ascii_hexdigit() || chars[i] == '_') {
                     i += 1;
                 }
-                let hex: String = chars[start + 2..i].iter().filter(|ch| **ch != '_').collect();
+                let hex: String = chars[start + 2..i]
+                    .iter()
+                    .filter(|ch| **ch != '_')
+                    .collect();
                 let n = i64::from_str_radix(&hex, 16).unwrap_or(0);
                 out.push(Token::Int(n));
-            } else if c == '0' && i + 1 < chars.len() && (chars[i + 1] == 'o' || chars[i + 1] == 'O') {
+            } else if c == '0'
+                && i + 1 < chars.len()
+                && (chars[i + 1] == 'o' || chars[i + 1] == 'O')
+            {
                 i += 2;
-                while i < chars.len() && (chars[i].is_ascii_digit() && chars[i] < '8' || chars[i] == '_') {
+                while i < chars.len()
+                    && (chars[i].is_ascii_digit() && chars[i] < '8' || chars[i] == '_')
+                {
                     i += 1;
                 }
-                let oct: String = chars[start + 2..i].iter().filter(|ch| **ch != '_').collect();
+                let oct: String = chars[start + 2..i]
+                    .iter()
+                    .filter(|ch| **ch != '_')
+                    .collect();
                 let n = i64::from_str_radix(&oct, 8).unwrap_or(0);
                 out.push(Token::Int(n));
-            } else if c == '0' && i + 1 < chars.len() && (chars[i + 1] == 'b' || chars[i + 1] == 'B') {
+            } else if c == '0'
+                && i + 1 < chars.len()
+                && (chars[i + 1] == 'b' || chars[i + 1] == 'B')
+            {
                 i += 2;
                 while i < chars.len() && (chars[i] == '0' || chars[i] == '1' || chars[i] == '_') {
                     i += 1;
                 }
-                let bin: String = chars[start + 2..i].iter().filter(|ch| **ch != '_').collect();
+                let bin: String = chars[start + 2..i]
+                    .iter()
+                    .filter(|ch| **ch != '_')
+                    .collect();
                 let n = i64::from_str_radix(&bin, 2).unwrap_or(0);
                 out.push(Token::Int(n));
             } else {
