@@ -1,0 +1,39 @@
+// step 3: if/elif/else + comparison + logic
+let x = 10;
+
+if (x > 5) {
+    println("big");
+}
+
+if (x > 100) {
+    println("huge");
+} elif (x > 5) {
+    println("medium");
+} else {
+    println("small");
+}
+
+let y = 20;
+if (x > 5 && y > 10) {
+    println("both true");
+}
+
+if (x > 100 || y > 10) {
+    println("at least one true");
+}
+
+if (x != 5) {
+    println("not five");
+}
+
+if (!false) {
+    println("not false is true");
+}
+
+if (x >= 10) {
+    println("at least ten");
+}
+
+if (x <= 10) {
+    println("at most ten");
+}
