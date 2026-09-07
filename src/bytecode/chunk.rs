@@ -165,6 +165,7 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
             payload.extend_from_slice(&(*argc as u32).to_le_bytes());
             (57u8, payload)
         }
+        Instruction::Deinit => (61u8, vec![]),
         Instruction::Pop => (60u8, vec![]),
         Instruction::Halt => (99u8, vec![]),
     };
@@ -294,6 +295,7 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
             ]) as usize;
             (Instruction::MethodCall(method, argc), pos + 4 + len + 4)
         }
+        61 => (Instruction::Deinit, pos),
         60 => (Instruction::Pop, pos),
         99 => (Instruction::Halt, pos),
         _ => {

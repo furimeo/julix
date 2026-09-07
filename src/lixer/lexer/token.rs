@@ -18,6 +18,7 @@ pub enum Token {
     Break,
     Continue,
     Dot,
+    Range,
     Function,
     Return,
     Type,
@@ -293,8 +294,7 @@ pub fn lex(src: &str) -> Vec<Token> {
             }
             '.' => {
                 if i + 1 < chars.len() && chars[i + 1] == '.' {
-                    out.push(Token::Dot);
-                    out.push(Token::Dot);
+                    out.push(Token::Range);
                     i += 2;
                 } else {
                     out.push(Token::Dot);

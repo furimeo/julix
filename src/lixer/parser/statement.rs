@@ -167,8 +167,7 @@ fn parse_for(p: &mut Parser) -> Statement {
     let var = expect_ident(p);
     p.expect(Token::In);
     let start = p.parse_expression();
-    p.expect(Token::Dot);
-    p.expect(Token::Dot);
+    p.expect(Token::Range);
     let end = p.parse_expression();
     p.expect(Token::RParen);
     let body = parse_block(p);

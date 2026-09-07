@@ -12,6 +12,7 @@ pub fn compile(stmts: &[Statement]) -> (Chunk, FunctionTable) {
     for stmt in stmts {
         compile_statement(stmt, &mut chunk, &mut functions, None);
     }
+    chunk.push(Instruction::Deinit);
     chunk.push(Instruction::Halt);
     (chunk, functions)
 }
@@ -122,6 +123,7 @@ fn compile_statement(
             for s in body {
                 compile_statement(s, &mut func_chunk, functions, None);
             }
+            func_chunk.push(Instruction::Deinit);
             func_chunk.push(Instruction::Return);
             functions.insert(
                 name.clone(),
@@ -137,6 +139,7 @@ fn compile_statement(
             } else {
                 chunk.push(Instruction::LoadBool(false));
             }
+            chunk.push(Instruction::Deinit);
             chunk.push(Instruction::Return);
         }
         Statement::Expr(expr) => {
@@ -154,6 +157,7 @@ fn compile_statement(
                 for s in &method.body {
                     compile_statement(s, &mut func_chunk, functions, None);
                 }
+                func_chunk.push(Instruction::Deinit);
                 func_chunk.push(Instruction::Return);
                 functions.insert(
                     mangled,

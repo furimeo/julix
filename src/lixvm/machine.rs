@@ -206,6 +206,10 @@ impl Machine {
                 Instruction::Pop => {
                     self.pop();
                 }
+                Instruction::Deinit => {
+                    // TODO: call deinit on objects going out of scope
+                    // requires GC or scope tracking, deferred to phase 1
+                }
                 Instruction::Halt => break,
             }
         }

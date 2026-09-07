@@ -47,6 +47,7 @@ pub enum Instruction {
     GetField(String),
     SetField(String),
     MethodCall(String, usize),
+    Deinit,
 
     // misc
     Pop,

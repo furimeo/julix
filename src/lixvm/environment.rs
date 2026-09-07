@@ -20,4 +20,14 @@ impl Environment {
     pub fn get(&self, name: &str) -> Option<&Value> {
         self.vars.get(name)
     }
+
+    pub fn objects(&self) -> Vec<Value> {
+        self.vars
+            .values()
+            .filter_map(|v| match v {
+                Value::Object(_, _) => Some(v.clone()),
+                _ => None,
+            })
+            .collect()
+    }
 }
