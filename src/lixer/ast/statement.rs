@@ -34,6 +34,13 @@ pub enum Statement {
         name: String,
         expr: Expression,
     },
+    FunctionDef {
+        name: String,
+        params: Vec<String>,
+        body: Vec<Statement>,
+    },
+    Return(Option<Expression>),
+    ExprStatement(Expression),
 }
 
 #[derive(Debug, Clone)]
