@@ -38,6 +38,18 @@ impl NativeTable {
         self.funcs.insert("env".to_string(), native_env as NativeFn);
         self.funcs
             .insert("args".to_string(), native_args as NativeFn);
+        self.funcs
+            .insert("read_file".to_string(), native_read_file as NativeFn);
+        self.funcs
+            .insert("write_file".to_string(), native_write_file as NativeFn);
+        self.funcs
+            .insert("file_exists".to_string(), native_file_exists as NativeFn);
+        self.funcs
+            .insert("bytes_new".to_string(), native_bytes_new as NativeFn);
+        self.funcs
+            .insert("bytes_set".to_string(), native_bytes_set as NativeFn);
+        self.funcs
+            .insert("bytes_get".to_string(), native_bytes_get as NativeFn);
     }
 }
 
@@ -95,4 +107,79 @@ fn native_env(_args: &[Value]) -> Value {
 fn native_args(_args: &[Value]) -> Value {
     let args: Vec<Value> = std::env::args().skip(1).map(Value::Str).collect();
     Value::List(args)
+}
+
+fn native_read_file(args: &[Value]) -> Value {
+    if let Some(Value::Str(path)) = args.first() {
+        match std::fs::read_to_string(path) {
+            Ok(content) => Value::Str(content),
+            Err(_) => Value::Null,
+        }
+    } else {
+        Value::Null
+    }
+}
+
+fn native_write_file(args: &[Value]) -> Value {
+    if args.len() >= 2 {
+        if let Value::Str(path) = &args[0] {
+            let data: Vec<u8> = match &args[1] {
+                Value::Str(s) => s.as_bytes().to_vec(),
+                Value::Bytes(b) => b.clone(),
+                v => v.stringify().into_bytes(),
+            };
+            match std::fs::write(path, data) {
+                Ok(_) => Value::Bool(true),
+                Err(_) => Value::Bool(false),
+            }
+        } else {
+            Value::Bool(false)
+        }
+    } else {
+        Value::Bool(false)
+    }
+}
+
+fn native_file_exists(args: &[Value]) -> Value {
+    if let Some(Value::Str(path)) = args.first() {
+        Value::Bool(std::path::Path::new(path).exists())
+    } else {
+        Value::Bool(false)
+    }
+}
+
+fn native_bytes_new(args: &[Value]) -> Value {
+    let size = match args.first() {
+        Some(Value::Int(n)) => *n as usize,
+        _ => 0,
+    };
+    Value::Bytes(vec![0u8; size])
+}
+
+fn native_bytes_set(args: &[Value]) -> Value {
+    if args.len() >= 3
+        && let Value::Bytes(b) = &args[0]
+    {
+        let mut b = b.clone();
+        if let (Value::Int(i), Value::Int(v)) = (&args[1], &args[2]) {
+            let idx = *i as usize;
+            if idx < b.len() {
+                b[idx] = *v as u8;
+                return Value::Bytes(b);
+            }
+        }
+    }
+    args.first().cloned().unwrap_or(Value::Null)
+}
+
+fn native_bytes_get(args: &[Value]) -> Value {
+    if args.len() >= 2
+        && let (Value::Bytes(b), Value::Int(i)) = (&args[0], &args[1])
+    {
+        let idx = *i as usize;
+        if idx < b.len() {
+            return Value::Int(b[idx] as i64);
+        }
+    }
+    Value::Null
 }

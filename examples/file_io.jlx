@@ -1,0 +1,22 @@
+// step 12: file I/O + buffer
+let data = read_file("examples/hello.jlx");
+if (data != null) {
+    println(data);
+} else {
+    println("file not found");
+}
+
+let exists = file_exists("examples/hello.jlx");
+println(exists);
+
+let buf = bytes_new(5);
+buf = bytes_set(buf, 0, 72);
+buf = bytes_set(buf, 1, 73);
+let byte0 = bytes_get(buf, 0);
+let byte1 = bytes_get(buf, 1);
+println(byte0);
+println(byte1);
+
+write_file("/tmp/julix_test.txt", "hello from julix");
+let content = read_file("/tmp/julix_test.txt");
+println(content);
