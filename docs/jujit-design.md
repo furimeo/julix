@@ -6,8 +6,135 @@
 
 1. Cold start ~0 (T0 interp, no compile)
 2. Peak state fast (low threshold, fast compile, OSR)
-3. No block (compile sub-ms or background)
+3. No block (compile sub-ms)
 4. Near-C speed for hot code
+
+## Design decisions
+
+### 1. Method-based vs trace-based
+
+| | Trace-based (LuaJIT) | Method-based (V8 Sparkplug) |
+|---|---|---|
+| Compile unit | 1 loop iteration (trace) | whole function |
+| Compile time | sub-us (trace small) | sub-ms (function) |
+| Peak speed | fast (only hot path) | slightly slower (whole function) |
+| Complexity | high (trace recording, stitching, abort) | low (compile function) |
+| Non-loop code | bad (trace = loop only) | good (any function) |
+| OSR | natural (trace = loop body) | explicit (loop header entry) |
+| Code size | blowup (many traces) | compact (1 per function) |
+| Deopt | complex (trace exit, side trace) | simple (interpreter resume) |
+
+Choice: **method-based**. Julix is small, simplicity wins. tune threshold low + aggressive OSR to match trace-based peak speed. trace complexity not worth it for a small language.
+
+### 2. Value representation
+
+| | NaN-boxing | Pointer tagging | Fat enum (current) |
+|---|---|---|---|
+| Size | 64-bit | 64-bit | 16+ bytes |
+| Float | inline (free) | boxed (alloc) | inline |
+| Int | i32 inline, i64 boxed | i63 inline | inline |
+| GC scan | tag check (1 cmp) | bit test (1 and) | match enum (slow) |
+| Tag check | 1-2 instructions | 1 instruction | match (branch) |
+| Fits in register | yes | yes | no |
+
+Choice: **NaN-boxing**. Julix has first-class Float, numeric code benefits from inline doubles. i32 inline covers 99% of ints. GC scan is one comparison.
+
+```
+63                       48 47                        0
++-------------------------+----------------------------+
+|  16-bit tag (NaN space) |  48-bit payload            |
++-------------------------+----------------------------+
+
+TAG_DBL  = 0x0000          bits ARE the double (not NaN pattern)
+TAG_INT  = 0xFFFC          payload low 32 = i32 (Smi)
+TAG_PTR  = 0xFFFE          payload low 47 = heap pointer (8-aligned)
+TAG_BOOL = 0xFFFD          payload[0] = 0/1
+TAG_NULL = 0xFFFB          payload = 0
+TAG_ERR  = 0xFFFA          payload = pointer to Error
+```
+
+Tag check:
+```asm
+; is_int?
+cmp rax, 0xFFFC_0000_0000_0000
+; is_ptr?
+and rbx, rax, 0xFFFF_0000_0000_0000
+cmp rbx, 0xFFFE_0000_0000_0000
+; is_double? (NaN pattern check)
+; doubles don't have tag bits, just check if not tagged
+```
+
+### 3. Compilation model
+
+| | Foreground (block) | Background (thread) | Hybrid |
+|---|---|---|---|
+| Block program | yes (sub-ms) | no | minimal |
+| Complexity | low | high (sync, locking) | medium |
+| Memory | low | thread stack | low |
+| Debug | easy | hard | medium |
+
+Choice: **foreground**. Trace/function compile is sub-ms, not noticeable. Background adds sync complexity for no real benefit. LuaJIT compiles foreground.
+
+### 4. Deopt strategy
+
+| | Eager (immediate) | Lazy (safepoint) |
+|---|---|---|
+| Latency | 0 (jump to deopt stub) | next safepoint |
+| Complexity | low | medium |
+| Correctness | simple | needs safepoint tracking |
+| Perf impact | guard always checks | guard sets flag, check later |
+
+Choice: **eager** for T1 and T2. Guard fails -> immediate deopt. Simple, correct. Lazy deopt only matters for complex inlining (defer).
+
+### 5. Hot code detection
+
+| | Counter (per loop/call) | Sampling (time-based) | Hybrid |
+|---|---|---|---|
+| Overhead | 1 increment per backedge | sampling interrupt | both |
+| Accuracy | exact counts | approximate | exact + time |
+| Simplicity | high | medium | low |
+| Catches loops | yes | yes | yes |
+| Catches long functions | no (only entry) | yes (sampling) | yes |
+
+Choice: **counter**. Simple, low overhead, catches loops (main hot code). Sampling deferred (needed for long non-loop functions, rare in Julix).
+
+Thresholds:
+- T0 -> T1: HOT_LOOP=30, HOT_CALL=50 (very low, like LuaJIT)
+- T1 -> T2: 200 hits + stable type feedback (3+ hits same type)
+
+### 6. OSR mechanism
+
+OSR = switch tier while function is on stack.
+
+Entry (T0 -> JIT at loop header):
+1. Backedge counter crosses threshold
+2. Compile function with extra entry at loop header
+3. Next backedge: copy live values from interp frame to JIT frame
+4. Jump into JIT loop
+
+Exit (JIT -> T0 on deopt):
+1. Guard fails in JIT code
+2. Call `jujit_deopt(live_values, resume_ip)` native handler
+3. Handler rebuilds interp frame from live values
+4. Continue interp at resume_ip
+
+Frame layout identical (interp-compatible) makes OSR trivial: copy slots, jump.
+
+### 7. Cranelift version
+
+Pin all cranelift crates to **0.135** (verified Aug 2026):
+```toml
+cranelift = "0.135"
+cranelift-module = "0.135"
+cranelift-jit = "0.135"
+cranelift-native = "0.135"
+```
+
+API notes (0.135 breaking changes):
+- `jump(block, &[BlockArg::Value(v)])` not `&[v]`
+- `brif(cond, then, &[BlockArg::Value(t)], else, &[])`
+- `fb.finalize(module.target_config())` not `fb.finalize()`
+- `create_sized_stack_slot(StackSlotData { ... })` not `create_stack_slot`
 
 ## Architecture: 3-tier
 
@@ -70,35 +197,18 @@ Replace `exit(1)` with recoverable error. Deopt needs to recover, not abort.
 
 Replace `Object(String, HashMap<String, Value>)` with `Object(ShapeId, Vec<Value>)` (flat array, shape-computed offsets). GetField becomes array index, not hashmap lookup.
 
+Shape transition: adding field creates new ShapeId. Object stores (ShapeId, Vec<Value>). Field offset computed from shape. Inline cache caches (ShapeId, offset).
+
 ### 8. NaN-boxed Value
 
-Replace fat enum (16+ bytes) with 64-bit NaN-boxed word:
+Replace fat enum (16+ bytes) with 64-bit NaN-boxed word (see design decision 2).
 
-```
-63                       48 47                        0
-+-------------------------+----------------------------+
-|  16-bit tag (NaN space) |  48-bit payload            |
-+-------------------------+----------------------------+
-
-TAG_DBL  = 0x0000          -> bits ARE the double
-TAG_INT  = 0xFFFC          -> payload low 32 = i32 (Smi)
-TAG_PTR  = 0xFFFE          -> payload low 47 = heap pointer
-TAG_BOOL = 0xFFFD          -> payload[0] = 0/1
-TAG_NULL = 0xFFFB          -> payload = 0
-TAG_ERR  = 0xFFFA          -> payload = pointer to Error
-```
-
-Floats inline (no alloc). Ints up to i32 inline. Large i64 boxed as HeapInt. GC scans: tag == TAG_PTR || tag == TAG_ERR.
-
-## T0: bytecode interpreter (current)
+## T0: bytecode interpreter (current + profiling)
 
 LixVM runs bytecode. Add profiling counters:
 - Backedge counter (per loop): increment on backward Jump
 - Entry counter (per function): increment on Call
-
-Thresholds:
-- T0 -> T1: HOT_LOOP=60, HOT_CALL=100 (low, like Sparkplug)
-- T1 -> T2: ~1000 hits + stable type feedback
+- Type recorder: record type tag at each op (for T2)
 
 ## T1: baseline JIT
 
@@ -107,26 +217,7 @@ Thresholds:
 1. 1:1 bytecode -> cranelift IR, no optimization
 2. Every type-dependent op calls runtime helper (jujit_add, jujit_getfield)
 3. Frame layout identical to interpreter (OSR/deopt trivial)
-4. Value = boxed pointer (*mut Value as i64) in T1, NaN-box in T2
-
-### Cranelift setup
-
-```toml
-[dependencies]
-cranelift = "0.135"
-cranelift-module = "0.135"
-cranelift-jit = "0.135"
-cranelift-native = "0.135"
-```
-
-All cranelift crates must be same version (they move in lockstep).
-
-### API notes (0.135 breaking changes)
-
-- `jump(block, &[BlockArg::Value(v)])` not `&[v]`
-- `brif(cond, then, &[BlockArg::Value(t)], else, &[])`
-- `fb.finalize(module.target_config())` not `fb.finalize()`
-- `create_sized_stack_slot(StackSlotData { ... })` not `create_stack_slot`
+4. Value = NaN-boxed 64-bit word
 
 ### Translation: stack bytecode -> cranelift SSA
 
@@ -144,9 +235,10 @@ Pre-create all blocks from bytecode CFG (ip -> Block map). Seal after all predec
 ### Runtime helpers (symbol table)
 
 ```rust
-extern "C" fn jujit_add(l: i64, r: i64) -> i64 { ... }
-extern "C" fn jujit_getfield(obj: i64, field: i64) -> i64 { ... }
-extern "C" fn jujit_alloc(size: i64, kind: i64) -> i64 { ... }
+extern "C" fn jujit_add(l: u64, r: u64) -> u64 { ... }
+extern "C" fn jujit_getfield(obj: u64, field: u64) -> u64 { ... }
+extern "C" fn jujit_alloc(size: u64, kind: u64) -> u64 { ... }
+extern "C" fn jujit_deopt(live: *mut u64, count: u64, ip: u64) -> ! { ... }
 ```
 
 Register via `JITBuilder::symbol("jujit_add", jujit_add as *const u8)`.
@@ -205,29 +297,13 @@ IC targets: GetField, MethodCall, IndexGet, Call.
 
 Construct whose result only used by local GetField/SetField -> scalar replacement, no allocation.
 
-### Deopt
-
-Eager deopt (v1): guard fails -> jump to deopt stub -> reconstruct interpreter state -> continue T0.
-
-Deopt descriptor per deopt point: `{ bytecode_ip, list of (value source: reg N or frame slot K) }`.
-
-## OSR (On-Stack Replacement)
-
-### OSR entry (T0 -> JIT at loop header)
-
-1. Loop counter crosses threshold mid-loop
-2. Compile function with extra entry at loop header
-3. Copy live interpreter state into JIT frame
-4. Jump into compiled loop
-
-### OSR exit (deopt)
+### Deopt (eager)
 
 1. Guard fails in JIT code
-2. Call `jujit_deopt(live_values, resume_ip)` (native)
-3. Native handler rebuilds interpreter frame
-4. Continue T0
-
-Cranelift has no built-in OSR. JuJIT implements via trap -> native handler -> interpreter.
+2. Jump to deopt stub
+3. Deopt descriptor: `{ bytecode_ip, list of (value source: reg N or frame slot K) }`
+4. Reconstruct interp frame from live values
+5. Continue T0 at bytecode_ip
 
 ## Code cache
 
@@ -242,15 +318,6 @@ Cache key: `hash(julix_version, cranelift_version, host_triple, source_hash, fun
 
 Never reuse code across cranelift major versions.
 
-## GC interface (design now, implement Phase 3)
-
-JIT must provide:
-- Safepoints at every allocation + loop backedge
-- Stack maps: which slots/registers hold pointers
-- Write barrier call sites (behind flag, no-op for v1)
-
-Without stack maps, GC is conservative (leaks). Precise GC requires these maps.
-
 ## JITModule limitations
 
 `cranelift-jit` JITModule has no per-function invalidate. Only `free_memory(self)` (all-or-nothing).
@@ -259,6 +326,15 @@ Solutions:
 1. One module per recompilation batch, epoch-based reclamation
 2. Trampoline + version flag: entry stub jumps through global pointer, swap pointer = swap code
 3. Old code leaks until no frame references it (epoch reclamation)
+
+## GC interface (design now, implement Phase 3)
+
+JIT must provide:
+- Safepoints at every allocation + loop backedge
+- Stack maps: which slots/registers hold pointers
+- Write barrier call sites (behind flag, no-op for v1)
+
+Without stack maps, GC is conservative (leaks). Precise GC requires these maps.
 
 ## Implementation phases
 
@@ -283,6 +359,28 @@ Compile time:
 - T1: sub-ms to few ms per function
 - T2: 5-50 ms per function (with inlining)
 
+## Target: peak state ASAP
+
+```
+open file -> 0ms (T0 interp, no compile)
+  |
+  run ~30 loop iterations or ~50 calls
+  |
+  T1 compile hot code (sub-ms per function)
+  |
+  OSR: switch to native mid-loop (~0)
+  |
+  run ~200 iterations with type feedback
+  |
+  T2 compile optimized (5-50ms per function)
+  |
+  OSR: switch to optimized native (~0)
+  |
+  peak state: near-C speed
+```
+
+User experience: open file, runs, fast. No visible warmup. Like LuaJIT, not V8.
+
 ## Pitfalls
 
 | Pitfall | Avoidance |
@@ -296,25 +394,6 @@ Compile time:
 | Unboxing in T1 | don't, T1 keeps boxed, unboxing is T2 |
 | Over-inlining | budget cap, never inline recursion |
 | Stale type feedback cache | start without caching feedback |
-
-## Target: peak state ASAP
-
-```
-open file -> 0ms (T0 interp, no compile)
-  |
-  run ~60 loop iterations or ~100 calls
-  |
-  T1 compile hot code (sub-ms per function)
-  |
-  OSR: switch to native mid-loop (~0)
-  |
-  run ~1000 iterations with type feedback
-  |
-  T2 compile optimized (5-50ms per function)
-  |
-  OSR: switch to optimized native (~0)
-  |
-  peak state: near-C speed
-```
-
-User experience: open file, runs, fast. No visible warmup. Like LuaJIT, not V8.
+| JITModule no per-function free | epoch-based reclamation |
+| BlockArg::Value wrap | 0.135 API, must wrap values in jump/brif |
+| finalize needs target_config | 0.135 API, not no-arg anymore |
