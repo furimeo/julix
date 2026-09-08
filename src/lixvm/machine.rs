@@ -162,6 +162,19 @@ impl Machine {
                                 std::process::exit(1);
                             }
                         }
+                        Value::Map(map) => {
+                            if field == "len" {
+                                self.push(Value::Int(map.len() as i64));
+                            } else {
+                                match map.get(&field) {
+                                    Some(v) => self.push(v.clone()),
+                                    None => {
+                                        eprintln!("error: key '{}' not found in map", field);
+                                        std::process::exit(1);
+                                    }
+                                }
+                            }
+                        }
                         Value::Object(_, fields) => match fields.get(&field) {
                             Some(v) => self.push(v.clone()),
                             None => {
@@ -267,11 +280,52 @@ impl Machine {
                             }
                             self.push(Value::Int(b[i as usize] as i64));
                         }
+                        (Value::Map(map), Value::Str(key)) => match map.get(&key) {
+                            Some(v) => self.push(v.clone()),
+                            None => {
+                                eprintln!("error: key '{}' not found", key);
+                                std::process::exit(1);
+                            }
+                        },
                         (obj, idx) => {
                             eprintln!("error: cannot index {:?} with {:?}", obj, idx);
                             std::process::exit(1);
                         }
                     }
+                }
+                Instruction::IndexSet => {
+                    let value = self.pop();
+                    let index = self.pop();
+                    let obj = self.pop();
+                    match (obj, index) {
+                        (Value::List(mut items), Value::Int(i)) => {
+                            if i < 0 || i as usize >= items.len() {
+                                eprintln!("error: index {} out of bounds", i);
+                                std::process::exit(1);
+                            }
+                            items[i as usize] = value;
+                            self.push(Value::List(items));
+                        }
+                        (Value::Map(mut map), Value::Str(key)) => {
+                            map.insert(key, value);
+                            self.push(Value::Map(map));
+                        }
+                        (obj, idx) => {
+                            eprintln!("error: cannot index set {:?} with {:?}", obj, idx);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Instruction::NewMap(count) => {
+                    let mut map = std::collections::HashMap::new();
+                    for _ in 0..count {
+                        let value = self.pop();
+                        let key = self.pop();
+                        if let Value::Str(k) = key {
+                            map.insert(k, value);
+                        }
+                    }
+                    self.push(Value::Map(map));
                 }
                 Instruction::Stringify => {
                     let value = self.pop();
@@ -312,6 +366,7 @@ fn native_method(obj: &Value, method: &str, args: &[Value]) -> Value {
         Value::Str(s) => string_method(s, method, args),
         Value::Bytes(b) => bytes_method(b, method, args),
         Value::List(items) => list_method(items, method, args),
+        Value::Map(map) => map_method(map, method, args),
         _ => {
             eprintln!("error: no method '{}' on {:?}", method, obj);
             std::process::exit(1);
@@ -414,14 +469,110 @@ fn bytes_method(b: &[u8], method: &str, args: &[Value]) -> Value {
     }
 }
 
-fn list_method(_items: &[Value], method: &str, _args: &[Value]) -> Value {
+fn list_method(items: &[Value], method: &str, args: &[Value]) -> Value {
     match method {
         "push" => {
-            eprintln!("error: list is immutable, use reassign");
-            std::process::exit(1);
+            let mut new_items = items.to_vec();
+            if let Some(item) = args.first() {
+                new_items.push(item.clone());
+            }
+            Value::List(new_items)
+        }
+        "concat" => {
+            let mut new_items = items.to_vec();
+            if let Some(Value::List(other)) = args.first() {
+                new_items.extend(other.iter().cloned());
+            }
+            Value::List(new_items)
+        }
+        "slice" => {
+            if args.len() >= 2 {
+                if let (Value::Int(start), Value::Int(end)) = (&args[0], &args[1]) {
+                    let start = (*start as usize).min(items.len());
+                    let end = (*end as usize).min(items.len());
+                    Value::List(items[start..end].to_vec())
+                } else {
+                    type_error("slice", args.first())
+                }
+            } else {
+                Value::List(items.to_vec())
+            }
+        }
+        "contains" => {
+            if let Some(item) = args.first() {
+                Value::Bool(items.contains(item))
+            } else {
+                Value::Bool(false)
+            }
+        }
+        "index_of" => {
+            if let Some(item) = args.first() {
+                Value::Int(
+                    items
+                        .iter()
+                        .position(|v| v == item)
+                        .map(|i| i as i64)
+                        .unwrap_or(-1),
+                )
+            } else {
+                Value::Int(-1)
+            }
+        }
+        "reverse" => {
+            let mut new_items = items.to_vec();
+            new_items.reverse();
+            Value::List(new_items)
+        }
+        "join" => {
+            if let Some(Value::Str(sep)) = args.first() {
+                let parts: Vec<String> = items.iter().map(|v| v.stringify()).collect();
+                Value::Str(parts.join(sep))
+            } else {
+                let parts: Vec<String> = items.iter().map(|v| v.stringify()).collect();
+                Value::Str(parts.join(""))
+            }
         }
         _ => {
             eprintln!("error: undefined list method '{}'", method);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn map_method(
+    map: &std::collections::HashMap<String, Value>,
+    method: &str,
+    args: &[Value],
+) -> Value {
+    match method {
+        "contains" => {
+            if let Some(Value::Str(key)) = args.first() {
+                Value::Bool(map.contains_key(key))
+            } else {
+                Value::Bool(false)
+            }
+        }
+        "keys" => Value::List(map.keys().cloned().map(Value::Str).collect()),
+        "values" => Value::List(map.values().cloned().collect()),
+        "get" => {
+            if let Some(Value::Str(key)) = args.first() {
+                match map.get(key) {
+                    Some(v) => v.clone(),
+                    None => Value::Bool(false),
+                }
+            } else {
+                Value::Bool(false)
+            }
+        }
+        "remove" => {
+            let mut new_map = map.clone();
+            if let Some(Value::Str(key)) = args.first() {
+                new_map.remove(key);
+            }
+            Value::Map(new_map)
+        }
+        _ => {
+            eprintln!("error: undefined map method '{}'", method);
             std::process::exit(1);
         }
     }

@@ -219,6 +219,25 @@ impl<'a> Parser<'a> {
                 self.expect(Token::RBracket);
                 Expression::List(items)
             }
+            Token::LBrace => {
+                self.advance();
+                let mut entries = Vec::new();
+                if !matches!(self.peek(), Token::RBrace) {
+                    let key = self.parse_expression();
+                    self.expect(Token::Colon);
+                    let value = self.parse_expression();
+                    entries.push((key, value));
+                    while matches!(self.peek(), Token::Comma) {
+                        self.advance();
+                        let key = self.parse_expression();
+                        self.expect(Token::Colon);
+                        let value = self.parse_expression();
+                        entries.push((key, value));
+                    }
+                }
+                self.expect(Token::RBrace);
+                Expression::Map(entries)
+            }
             t => {
                 eprintln!("parse error: expected literal or identifier, got {:?}", t);
                 std::process::exit(1);

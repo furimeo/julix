@@ -53,7 +53,9 @@ pub enum Instruction {
     // literals
     LoadBytes(Vec<u8>),
     NewList(usize),
+    NewMap(usize),
     IndexGet,
+    IndexSet,
     Stringify,
 
     // misc

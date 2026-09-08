@@ -173,7 +173,9 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
             (62u8, payload)
         }
         Instruction::NewList(count) => (63u8, (*count as u32).to_le_bytes().to_vec()),
+        Instruction::NewMap(count) => (67u8, (*count as u32).to_le_bytes().to_vec()),
         Instruction::IndexGet => (64u8, vec![]),
+        Instruction::IndexSet => (68u8, vec![]),
         Instruction::Stringify => (65u8, vec![]),
         Instruction::Pop => (60u8, vec![]),
         Instruction::Halt => (99u8, vec![]),
@@ -319,6 +321,12 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
             (Instruction::NewList(count), pos + 4)
         }
         64 => (Instruction::IndexGet, pos),
+        67 => {
+            let count = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
+            (Instruction::NewMap(count), pos + 4)
+        }
+        68 => (Instruction::IndexSet, pos),
         65 => (Instruction::Stringify, pos),
         66 => {
             let n = f64::from_le_bytes([

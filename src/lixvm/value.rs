@@ -6,6 +6,7 @@ pub enum Value {
     Bool(bool),
     Bytes(Vec<u8>),
     List(Vec<Value>),
+    Map(std::collections::HashMap<String, Value>),
     Object(String, std::collections::HashMap<String, Value>),
 }
 
@@ -38,6 +39,13 @@ impl Value {
                     .map(|(k, v)| format!("{}: {}", k, v.stringify()))
                     .collect();
                 format!("{}({})", type_name, pairs.join(", "))
+            }
+            Value::Map(fields) => {
+                let pairs: Vec<String> = fields
+                    .iter()
+                    .map(|(k, v)| format!("{}: {}", k, v.stringify()))
+                    .collect();
+                format!("{{{}}}", pairs.join(", "))
             }
         }
     }

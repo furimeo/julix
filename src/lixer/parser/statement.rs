@@ -86,6 +86,13 @@ fn parse_statement(p: &mut Parser) -> Statement {
                         expr: value,
                     };
                 }
+                if let Expression::Index { object, index } = &expr {
+                    return Statement::IndexAssign {
+                        object: (**object).clone(),
+                        index: (**index).clone(),
+                        expr: value,
+                    };
+                }
                 eprintln!("error: cannot assign to this expression");
                 std::process::exit(1);
             }

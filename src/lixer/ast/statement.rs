@@ -51,6 +51,11 @@ pub enum Statement {
         field: String,
         expr: Expression,
     },
+    IndexAssign {
+        object: Expression,
+        index: Expression,
+        expr: Expression,
+    },
 }
 
 #[derive(Debug, Clone)]

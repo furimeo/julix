@@ -181,6 +181,19 @@ fn compile_statement(
                 chunk.push(Instruction::StoreVar(name.clone()));
             }
         }
+        Statement::IndexAssign {
+            object,
+            index,
+            expr,
+        } => {
+            compile_expression(object, chunk);
+            compile_expression(index, chunk);
+            compile_expression(expr, chunk);
+            chunk.push(Instruction::IndexSet);
+            if let Expression::Ident(name) = object {
+                chunk.push(Instruction::StoreVar(name.clone()));
+            }
+        }
         Statement::Break => {
             if loop_info.is_some() {
                 chunk.push(Instruction::Jump(BREAK_SENTINEL));
@@ -333,10 +346,27 @@ fn compile_expression(expr: &Expression, chunk: &mut Chunk) {
             }
             chunk.push(Instruction::NewList(items.len()));
         }
+        Expression::Map(entries) => {
+            for (key, value) in entries {
+                compile_expression(key, chunk);
+                compile_expression(value, chunk);
+            }
+            chunk.push(Instruction::NewMap(entries.len()));
+        }
         Expression::Index { object, index } => {
             compile_expression(object, chunk);
             compile_expression(index, chunk);
             chunk.push(Instruction::IndexGet);
+        }
+        Expression::IndexSet {
+            object,
+            index,
+            value,
+        } => {
+            compile_expression(object, chunk);
+            compile_expression(index, chunk);
+            compile_expression(value, chunk);
+            chunk.push(Instruction::IndexSet);
         }
         Expression::FString(parts) => {
             let mut first = true;

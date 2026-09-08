@@ -39,9 +39,15 @@ pub enum Expression {
     },
     Bytes(Vec<u8>),
     List(Vec<Expression>),
+    Map(Vec<(Expression, Expression)>),
     Index {
         object: Box<Expression>,
         index: Box<Expression>,
+    },
+    IndexSet {
+        object: Box<Expression>,
+        index: Box<Expression>,
+        value: Box<Expression>,
     },
     FString(Vec<crate::lixer::lexer::token::FStrPart>),
 }
