@@ -1,10 +1,10 @@
 [package]
 name = "julix"
 version = "0.0.7"
-edition = "2021"
+edition = "2024"
 authors = ["Le Hung Quang Minh (furimeo) <224610210+furimeo@users.noreply.github.com>"]
 license = "MIT"
-description = "Dynamic, script-first, GC-managed. Faster than Python, deeper than JS/Go for system work."
+description = "A dynamic, script-first language with a bytecode VM."
 
 [[bin]]
 name = "julix"

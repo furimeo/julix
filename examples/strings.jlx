@@ -1,0 +1,27 @@
+// step 8: string + bytes + f-string + list
+let s = "hello world";
+println(s.len);
+println(s.upper());
+println(s.lower());
+println(s.trim());
+println(s.contains("world"));
+println(s.find("world"));
+println(s.replace("world", "julix"));
+println(s.starts_with("hello"));
+println(s.ends_with("world"));
+println(s.slice(0, 5));
+
+let parts = s.split(" ");
+println(parts.len);
+println(parts[0]);
+println(parts[1]);
+
+let buf = b"GET / HTTP/1.1\r\n";
+println(buf.len);
+println(buf[0]);
+println(buf.slice(0, 3).to_string());
+
+let name = "julix";
+let v = 0.1;
+println(f"hello {name} v{v}");
+println(f"{1 + 2} * 2 = {(1 + 2) * 2}");
