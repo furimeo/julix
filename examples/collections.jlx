@@ -1,0 +1,29 @@
+// step 9: list + map
+let xs = [1, 2, 3];
+println(xs.len);
+println(xs[0]);
+println(xs[2]);
+xs = xs.push(4);
+println(xs.len);
+println(xs[3]);
+let ys = [5, 6];
+let zs = xs.concat(ys);
+println(zs.len);
+println(zs.reverse());
+println(zs.contains(6));
+println(zs.index_of(5));
+println(zs.slice(0, 2));
+println([1, 2, 3].join(", "));
+
+xs[0] = 100;
+println(xs[0]);
+
+let m = {"a": 1, "b": 2};
+println(m.len);
+println(m["a"]);
+println(m["b"]);
+m["c"] = 3;
+println(m["c"]);
+println(m.contains("a"));
+println(m.keys());
+println(m.values());
