@@ -234,7 +234,7 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
         Instruction::Print => (50u8, vec![]),
         Instruction::PrintLn => (51u8, vec![]),
         Instruction::Call(id, argc) => {
-            let mut payload = (*id as u32).to_le_bytes().to_vec();
+            let mut payload = id.to_le_bytes().to_vec();
             payload.extend_from_slice(&(*argc as u32).to_le_bytes());
             (52u8, payload)
         }
@@ -264,7 +264,7 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
             (56u8, payload)
         }
         Instruction::MethodCall(id, argc) => {
-            let mut payload = (*id as u32).to_le_bytes().to_vec();
+            let mut payload = id.to_le_bytes().to_vec();
             payload.extend_from_slice(&(*argc as u32).to_le_bytes());
             (57u8, payload)
         }
