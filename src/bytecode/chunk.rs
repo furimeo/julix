@@ -5,6 +5,15 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 pub struct Chunk {
     pub code: Vec<Instruction>,
+    pub pool: Vec<Const>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Const {
+    Int(i64),
+    Float(f64),
+    Str(String),
+    Bytes(Vec<u8>),
 }
 
 #[derive(Debug, Clone)]
@@ -61,7 +70,10 @@ impl FunctionTable {
 
 impl Chunk {
     pub fn new() -> Self {
-        Chunk { code: Vec::new() }
+        Chunk {
+            code: Vec::new(),
+            pool: Vec::new(),
+        }
     }
 
     pub fn push(&mut self, instr: Instruction) {
@@ -84,23 +96,109 @@ pub fn serialize(chunk: &Chunk, path: &Path) -> std::io::Result<()> {
     data.extend_from_slice(MAGIC);
     let count = chunk.code.len() as u32;
     data.extend_from_slice(&count.to_le_bytes());
+    let pool_count = chunk.pool.len() as u32;
+    data.extend_from_slice(&pool_count.to_le_bytes());
+    for c in &chunk.pool {
+        serialize_const(c, &mut data);
+    }
     for instr in &chunk.code {
         instruction_to_bytes(instr, &mut data);
     }
     fs::write(path, data)
 }
 
+fn serialize_const(c: &Const, data: &mut Vec<u8>) {
+    match c {
+        Const::Int(n) => {
+            data.push(0);
+            data.extend_from_slice(&n.to_le_bytes());
+        }
+        Const::Float(n) => {
+            data.push(1);
+            data.extend_from_slice(&n.to_le_bytes());
+        }
+        Const::Str(s) => {
+            data.push(2);
+            let b = s.as_bytes();
+            data.extend_from_slice(&(b.len() as u32).to_le_bytes());
+            data.extend_from_slice(b);
+        }
+        Const::Bytes(b) => {
+            data.push(3);
+            data.extend_from_slice(&(b.len() as u32).to_le_bytes());
+            data.extend_from_slice(b);
+        }
+    }
+}
+
+fn deserialize_const(data: &[u8], pos: usize) -> (Const, usize) {
+    let tag = data[pos];
+    let pos = pos + 1;
+    match tag {
+        0 => {
+            let n = i64::from_le_bytes([
+                data[pos],
+                data[pos + 1],
+                data[pos + 2],
+                data[pos + 3],
+                data[pos + 4],
+                data[pos + 5],
+                data[pos + 6],
+                data[pos + 7],
+            ]);
+            (Const::Int(n), pos + 8)
+        }
+        1 => {
+            let n = f64::from_le_bytes([
+                data[pos],
+                data[pos + 1],
+                data[pos + 2],
+                data[pos + 3],
+                data[pos + 4],
+                data[pos + 5],
+                data[pos + 6],
+                data[pos + 7],
+            ]);
+            (Const::Float(n), pos + 8)
+        }
+        2 => {
+            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
+            let s = String::from_utf8_lossy(&data[pos + 4..pos + 4 + len]).to_string();
+            (Const::Str(s), pos + 4 + len)
+        }
+        3 => {
+            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
+            (
+                Const::Bytes(data[pos + 4..pos + 4 + len].to_vec()),
+                pos + 4 + len,
+            )
+        }
+        _ => {
+            eprintln!("error: unknown const tag {}", tag);
+            std::process::exit(1);
+        }
+    }
+}
+
 pub fn deserialize(path: &str) -> std::io::Result<Chunk> {
     let data = fs::read(path)?;
-    if data.len() < 8 || &data[0..4] != MAGIC {
+    if data.len() < 12 || &data[0..4] != MAGIC {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             "not a valid .jlxr file",
         ));
     }
     let count = u32::from_le_bytes([data[4], data[5], data[6], data[7]]) as usize;
+    let pool_count = u32::from_le_bytes([data[8], data[9], data[10], data[11]]) as usize;
     let mut chunk = Chunk::new();
-    let mut pos = 8;
+    let mut pos = 12;
+    for _ in 0..pool_count {
+        let (c, new_pos) = deserialize_const(&data, pos);
+        chunk.pool.push(c);
+        pos = new_pos;
+    }
     for _ in 0..count {
         let (instr, new_pos) = bytes_to_instruction(&data, pos);
         chunk.push(instr);
@@ -112,15 +210,9 @@ pub fn deserialize(path: &str) -> std::io::Result<Chunk> {
 fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
     let (tag, payload) = match instr {
         Instruction::LoadInt(n) => (0u8, n.to_le_bytes().to_vec()),
-        Instruction::LoadFloat(n) => (66u8, n.to_le_bytes().to_vec()),
         Instruction::LoadNull => (71u8, vec![]),
-        Instruction::LoadStr(s) => {
-            let bytes = s.as_bytes();
-            let mut payload = (bytes.len() as u32).to_le_bytes().to_vec();
-            payload.extend_from_slice(bytes);
-            (1u8, payload)
-        }
         Instruction::LoadBool(b) => (2u8, vec![if *b { 1 } else { 0 }]),
+        Instruction::LoadConst(idx) => (72u8, idx.to_le_bytes().to_vec()),
         Instruction::LoadSlot(slot) => (4u8, slot.to_le_bytes().to_vec()),
         Instruction::StoreSlot(slot) => (5u8, slot.to_le_bytes().to_vec()),
         Instruction::Add => (10u8, vec![]),
@@ -184,11 +276,6 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
             payload.extend_from_slice(&(*end_ip as u32).to_le_bytes());
             (70u8, payload)
         }
-        Instruction::LoadBytes(b) => {
-            let mut payload = (b.len() as u32).to_le_bytes().to_vec();
-            payload.extend_from_slice(b);
-            (62u8, payload)
-        }
         Instruction::NewList(count) => (63u8, (*count as u32).to_le_bytes().to_vec()),
         Instruction::NewMap(count) => (67u8, (*count as u32).to_le_bytes().to_vec()),
         Instruction::IndexGet => (64u8, vec![]),
@@ -218,13 +305,11 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
             ]);
             (Instruction::LoadInt(n), pos + 8)
         }
-        1 => {
-            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-                as usize;
-            let s = String::from_utf8_lossy(&data[pos + 4..pos + 4 + len]).to_string();
-            (Instruction::LoadStr(s), pos + 4 + len)
-        }
         2 => (Instruction::LoadBool(data[pos] == 1), pos + 1),
+        72 => {
+            let idx = u16::from_le_bytes([data[pos], data[pos + 1]]);
+            (Instruction::LoadConst(idx), pos + 2)
+        }
         4 => {
             let slot = u16::from_le_bytes([data[pos], data[pos + 1]]);
             (Instruction::LoadSlot(slot), pos + 2)
@@ -315,14 +400,6 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
                     as usize;
             (Instruction::TryCatch(catch_ip, end_ip), pos + 8)
         }
-        62 => {
-            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-                as usize;
-            (
-                Instruction::LoadBytes(data[pos + 4..pos + 4 + len].to_vec()),
-                pos + 4 + len,
-            )
-        }
         63 => {
             let count = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
                 as usize;
@@ -336,19 +413,6 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
         }
         68 => (Instruction::IndexSet, pos),
         65 => (Instruction::Stringify, pos),
-        66 => {
-            let n = f64::from_le_bytes([
-                data[pos],
-                data[pos + 1],
-                data[pos + 2],
-                data[pos + 3],
-                data[pos + 4],
-                data[pos + 5],
-                data[pos + 6],
-                data[pos + 7],
-            ]);
-            (Instruction::LoadFloat(n), pos + 8)
-        }
         71 => (Instruction::LoadNull, pos),
         60 => (Instruction::Pop, pos),
         99 => (Instruction::Halt, pos),

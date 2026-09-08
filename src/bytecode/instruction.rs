@@ -2,10 +2,9 @@
 pub enum Instruction {
     // literals
     LoadInt(i64),
-    LoadFloat(f64),
     LoadNull,
-    LoadStr(String),
     LoadBool(bool),
+    LoadConst(u16),
 
     // variables
     LoadSlot(u16),
@@ -54,8 +53,7 @@ pub enum Instruction {
     Throw,
     TryCatch(usize, usize),
 
-    // literals
-    LoadBytes(Vec<u8>),
+    // literals (in constant pool)
     NewList(usize),
     NewMap(usize),
     IndexGet,

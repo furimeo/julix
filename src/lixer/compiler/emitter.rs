@@ -1,4 +1,4 @@
-use crate::bytecode::chunk::{Chunk, FunctionDef, FunctionTable};
+use crate::bytecode::chunk::{Chunk, Const, FunctionDef, FunctionTable};
 use crate::bytecode::instruction::Instruction;
 use crate::lixer::ast::expression::Expression;
 use crate::lixer::ast::statement::Statement;
@@ -32,6 +32,16 @@ impl SlotCtx {
     fn get(&self, name: &str) -> Option<u16> {
         self.slots.get(name).copied()
     }
+}
+
+fn add_const(chunk: &mut Chunk, c: Const) -> u16 {
+    for (i, existing) in chunk.pool.iter().enumerate() {
+        if existing == &c {
+            return i as u16;
+        }
+    }
+    chunk.pool.push(c);
+    (chunk.pool.len() - 1) as u16
 }
 
 pub fn compile(stmts: &[Statement]) -> (Chunk, FunctionTable, u16) {
@@ -324,9 +334,15 @@ fn compile_expression(
 ) {
     match expr {
         Expression::Int(n) => chunk.push(Instruction::LoadInt(*n)),
-        Expression::Float(n) => chunk.push(Instruction::LoadFloat(*n)),
+        Expression::Float(n) => {
+            let idx = add_const(chunk, Const::Float(*n));
+            chunk.push(Instruction::LoadConst(idx));
+        }
         Expression::Null => chunk.push(Instruction::LoadNull),
-        Expression::Str(s) => chunk.push(Instruction::LoadStr(s.clone())),
+        Expression::Str(s) => {
+            let idx = add_const(chunk, Const::Str(s.clone()));
+            chunk.push(Instruction::LoadConst(idx));
+        }
         Expression::Bool(b) => chunk.push(Instruction::LoadBool(*b)),
         Expression::Ident(name) => {
             let slot = slots.get_or_alloc(name);
@@ -438,7 +454,8 @@ fn compile_expression(
             chunk.push(Instruction::Construct(type_name.clone(), field_names));
         }
         Expression::Bytes(b) => {
-            chunk.push(Instruction::LoadBytes(b.clone()));
+            let idx = add_const(chunk, Const::Bytes(b.clone()));
+            chunk.push(Instruction::LoadConst(idx));
         }
         Expression::List(items) => {
             for item in items {
@@ -473,7 +490,8 @@ fn compile_expression(
             for part in parts {
                 match part {
                     crate::lixer::lexer::token::FStrPart::Literal(s) => {
-                        chunk.push(Instruction::LoadStr(s.clone()));
+                        let idx = add_const(chunk, Const::Str(s.clone()));
+                        chunk.push(Instruction::LoadConst(idx));
                         if !first {
                             chunk.push(Instruction::Add);
                         }
@@ -493,7 +511,8 @@ fn compile_expression(
                 }
             }
             if first {
-                chunk.push(Instruction::LoadStr(String::new()));
+                let idx = add_const(chunk, Const::Str(String::new()));
+                chunk.push(Instruction::LoadConst(idx));
             }
         }
     }

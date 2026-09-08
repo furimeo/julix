@@ -1,4 +1,4 @@
-use crate::bytecode::chunk::{Chunk, FunctionTable};
+use crate::bytecode::chunk::{Chunk, Const, FunctionTable};
 use crate::bytecode::instruction::Instruction;
 use crate::lixvm::environment::Environment;
 use crate::lixvm::operations::arithmetic;
@@ -61,10 +61,17 @@ impl Machine {
             self.ip += 1;
             match instr {
                 Instruction::LoadInt(n) => self.push(Value::Int(n)),
-                Instruction::LoadFloat(n) => self.push(Value::Float(n)),
                 Instruction::LoadNull => self.push(Value::Null),
-                Instruction::LoadStr(s) => self.push(Value::Str(s)),
                 Instruction::LoadBool(b) => self.push(Value::Bool(b)),
+                Instruction::LoadConst(idx) => {
+                    let val = match &self.chunk.pool[idx as usize] {
+                        Const::Int(n) => Value::Int(*n),
+                        Const::Float(n) => Value::Float(*n),
+                        Const::Str(s) => Value::Str(s.clone()),
+                        Const::Bytes(b) => Value::Bytes(b.clone()),
+                    };
+                    self.push(val);
+                }
                 Instruction::LoadSlot(slot) => self.push(self.env.get_slot(slot).clone()),
                 Instruction::StoreSlot(slot) => {
                     let value = self.pop();
@@ -279,9 +286,6 @@ impl Machine {
                         let result = native_method(&obj, &method_name, &args);
                         self.push(result);
                     }
-                }
-                Instruction::LoadBytes(b) => {
-                    self.push(Value::Bytes(b.clone()));
                 }
                 Instruction::NewList(count) => {
                     let mut items = Vec::new();
