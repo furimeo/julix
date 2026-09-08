@@ -6,7 +6,6 @@ pub enum Instruction {
     LoadNull,
     LoadStr(String),
     LoadBool(bool),
-    LoadConst(usize),
 
     // variables
     LoadVar(String),

@@ -14,7 +14,8 @@ struct Frame {
 
 struct CatchHandler {
     catch_ip: usize,
-    return_ip: usize,
+    end_ip: usize,
+    frame_count: usize,
     return_env: Environment,
     return_chunk: Chunk,
 }
@@ -46,6 +47,13 @@ impl Machine {
 
     pub fn run(&mut self) {
         loop {
+            while let Some(handler) = self.catch_stack.last() {
+                if handler.end_ip == self.ip {
+                    self.catch_stack.pop();
+                } else {
+                    break;
+                }
+            }
             let instr = match self.chunk.get(self.ip) {
                 Some(i) => i.clone(),
                 None => break,
@@ -57,7 +65,6 @@ impl Machine {
                 Instruction::LoadNull => self.push(Value::Null),
                 Instruction::LoadStr(s) => self.push(Value::Str(s)),
                 Instruction::LoadBool(b) => self.push(Value::Bool(b)),
-                Instruction::LoadConst(_) => {}
                 Instruction::LoadVar(name) => match self.env.get(&name) {
                     Some(value) => self.push(value.clone()),
                     None => {
@@ -360,7 +367,7 @@ impl Machine {
                         self.ip = handler.catch_ip;
                         self.env = handler.return_env;
                         self.chunk = handler.return_chunk;
-                        self.frames.truncate(self.frames.len());
+                        self.frames.truncate(handler.frame_count);
                         self.push(err);
                     } else {
                         eprintln!("uncaught error: {}", err.stringify());
@@ -370,12 +377,12 @@ impl Machine {
                 Instruction::TryCatch(catch_ip, end_ip) => {
                     let handler = CatchHandler {
                         catch_ip,
-                        return_ip: self.ip,
+                        end_ip,
+                        frame_count: self.frames.len(),
                         return_env: self.env.clone(),
                         return_chunk: self.chunk.clone(),
                     };
                     self.catch_stack.push(handler);
-                    let _ = end_ip;
                 }
                 Instruction::Halt => break,
             }

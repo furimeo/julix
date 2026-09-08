@@ -63,7 +63,6 @@ pub enum Token {
     Or,
     Not,
     Semicolon,
-    Newline,
     Eof,
 }
 

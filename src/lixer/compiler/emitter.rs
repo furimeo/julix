@@ -333,7 +333,6 @@ fn compile_expression(expr: &Expression, chunk: &mut Chunk) {
             compile_expression(e, chunk);
             chunk.push(Instruction::Not);
         }
-        Expression::Range(_, _) => {}
         Expression::Call { callee, args } => {
             for arg in args {
                 compile_expression(arg, chunk);

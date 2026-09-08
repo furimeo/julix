@@ -97,7 +97,6 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
             (1u8, payload)
         }
         Instruction::LoadBool(b) => (2u8, vec![if *b { 1 } else { 0 }]),
-        Instruction::LoadConst(i) => (3u8, (*i as u32).to_le_bytes().to_vec()),
         Instruction::LoadVar(name) => {
             let bytes = name.as_bytes();
             let mut payload = (bytes.len() as u32).to_le_bytes().to_vec();
@@ -216,11 +215,6 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
             (Instruction::LoadStr(s), pos + 4 + len)
         }
         2 => (Instruction::LoadBool(data[pos] == 1), pos + 1),
-        3 => {
-            let i = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-                as usize;
-            (Instruction::LoadConst(i), pos + 4)
-        }
         4 => {
             let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
                 as usize;

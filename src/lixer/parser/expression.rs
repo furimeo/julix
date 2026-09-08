@@ -26,9 +26,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn skip_newlines(&mut self) {
-        while matches!(self.peek(), Token::Newline) {
-            self.pos += 1;
-        }
+        // newline is whitespace, not a token (lexer skips it)
     }
 
     pub fn expect(&mut self, expected: Token) {

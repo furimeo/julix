@@ -20,7 +20,6 @@ pub enum Expression {
     And(Box<Expression>, Box<Expression>),
     Or(Box<Expression>, Box<Expression>),
     Not(Box<Expression>),
-    Range(Box<Expression>, Box<Expression>),
     Call {
         callee: Box<Expression>,
         args: Vec<Expression>,
