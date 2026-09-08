@@ -60,11 +60,20 @@ Semantic versioning: `MAJOR.MINOR.PATCH`
 
 ```sh
 julix --version        # print all three
-# Julix 0.0.2
-# LixVM 0.0.0
+# Julix 0.1.0
+# LixVM 0.1.0
 # JuJIT 0.0.0
 
 julix --julix-version  # only Julix
 julix --lixvm-version  # only LixVM
 julix --jujit-version  # only JuJIT
+```
+
+## Cache layout (phase 2+)
+
+```
+~/.julix/cache/
+├── <hash>.jlxr       # LixVM bytecode
+├── <hash>.jujit1     # JuJIT T1 native code
+└── <hash>.jujit2     # JuJIT T2 native code
 ```
