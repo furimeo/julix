@@ -44,8 +44,8 @@ Independent of the LixVM version. JuJIT is a layer on top of LixVM.
 
 | Component | Version | Notes |
 |---|---|---|
-| Julix | 0.0.7 | deinit hook (placeholder), Range token |
-| LixVM | 0.0.6 | Deinit instruction, Environment.objects() |
+| Julix | 0.0.8 | string/bytes/list literals, f-string, float, native methods |
+| LixVM | 0.0.7 | LoadBytes, NewList, IndexGet, Stringify, LoadFloat, native method dispatch |
 | JuJIT | 0.0.0 | not built yet, phase 2 |
 
 ## Format
