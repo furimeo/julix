@@ -1,6 +1,7 @@
 #[derive(Debug, Clone)]
 pub enum Expression {
     Int(i64),
+    Float(f64),
     Str(String),
     Bool(bool),
     Ident(String),
@@ -36,4 +37,11 @@ pub enum Expression {
         type_name: String,
         fields: Vec<(String, Expression)>,
     },
+    Bytes(Vec<u8>),
+    List(Vec<Expression>),
+    Index {
+        object: Box<Expression>,
+        index: Box<Expression>,
+    },
+    FString(Vec<crate::lixer::lexer::token::FStrPart>),
 }

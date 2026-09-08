@@ -42,6 +42,7 @@ impl Machine {
             self.ip += 1;
             match instr {
                 Instruction::LoadInt(n) => self.push(Value::Int(n)),
+                Instruction::LoadFloat(n) => self.push(Value::Float(n)),
                 Instruction::LoadStr(s) => self.push(Value::Str(s)),
                 Instruction::LoadBool(b) => self.push(Value::Bool(b)),
                 Instruction::LoadConst(_) => {}
@@ -136,8 +137,32 @@ impl Machine {
                 }
                 Instruction::GetField(field) => {
                     let obj = self.pop();
-                    match obj {
-                        Value::Object(_, ref fields) => match fields.get(&field) {
+                    match &obj {
+                        Value::Str(s) => {
+                            if field == "len" {
+                                self.push(Value::Int(s.chars().count() as i64));
+                            } else {
+                                eprintln!("error: string has no property '{}'", field);
+                                std::process::exit(1);
+                            }
+                        }
+                        Value::Bytes(b) => {
+                            if field == "len" {
+                                self.push(Value::Int(b.len() as i64));
+                            } else {
+                                eprintln!("error: bytes has no property '{}'", field);
+                                std::process::exit(1);
+                            }
+                        }
+                        Value::List(items) => {
+                            if field == "len" {
+                                self.push(Value::Int(items.len() as i64));
+                            } else {
+                                eprintln!("error: list has no property '{}'", field);
+                                std::process::exit(1);
+                            }
+                        }
+                        Value::Object(_, fields) => match fields.get(&field) {
                             Some(v) => self.push(v.clone()),
                             None => {
                                 eprintln!("error: no field '{}'", field);
@@ -145,7 +170,7 @@ impl Machine {
                             }
                         },
                         _ => {
-                            eprintln!("error: cannot get field from non-object");
+                            eprintln!("error: cannot get field from {:?}", obj);
                             std::process::exit(1);
                         }
                     }
@@ -165,43 +190,92 @@ impl Machine {
                     }
                 }
                 Instruction::MethodCall(method, argc) => {
-                    let obj = self.pop();
                     let mut args = Vec::new();
                     for _ in 0..argc {
                         args.push(self.pop());
                     }
                     args.reverse();
-                    let type_name = match &obj {
-                        Value::Object(name, _) => name.clone(),
-                        _ => {
-                            eprintln!("error: cannot call method on non-object");
-                            std::process::exit(1);
+                    let obj = self.pop();
+                    if let Value::Object(_, _) = &obj {
+                        let type_name = match &obj {
+                            Value::Object(name, _) => name.clone(),
+                            _ => unreachable!(),
+                        };
+                        let mangled = format!("{}.{}", type_name, method);
+                        let func_def = match self.functions.get(&mangled) {
+                            Some(f) => f.clone(),
+                            None => {
+                                eprintln!("error: undefined method '{}.{}'", type_name, method);
+                                std::process::exit(1);
+                            }
+                        };
+                        let mut func_env = Environment::new();
+                        func_env.set("self", obj);
+                        let params: Vec<&String> =
+                            func_def.params.iter().filter(|p| **p != "self").collect();
+                        for (i, param) in params.iter().enumerate() {
+                            if i < args.len() {
+                                func_env.set(param, args[i].clone());
+                            }
                         }
-                    };
-                    let mangled = format!("{}.{}", type_name, method);
-                    let func_def = match self.functions.get(&mangled) {
-                        Some(f) => f.clone(),
-                        None => {
-                            eprintln!("error: undefined method '{}.{}'", type_name, method);
-                            std::process::exit(1);
+                        let frame = Frame {
+                            return_ip: self.ip,
+                            return_env: std::mem::replace(&mut self.env, func_env),
+                            return_chunk: std::mem::replace(&mut self.chunk, func_def.chunk),
+                        };
+                        self.frames.push(frame);
+                        self.ip = 0;
+                    } else {
+                        let result = native_method(&obj, &method, &args);
+                        self.push(result);
+                    }
+                }
+                Instruction::LoadBytes(b) => {
+                    self.push(Value::Bytes(b.clone()));
+                }
+                Instruction::NewList(count) => {
+                    let mut items = Vec::new();
+                    for _ in 0..count {
+                        items.push(self.pop());
+                    }
+                    items.reverse();
+                    self.push(Value::List(items));
+                }
+                Instruction::IndexGet => {
+                    let index = self.pop();
+                    let obj = self.pop();
+                    match (obj, index) {
+                        (Value::List(items), Value::Int(i)) => {
+                            if i < 0 || i as usize >= items.len() {
+                                eprintln!("error: index {} out of bounds", i);
+                                std::process::exit(1);
+                            }
+                            self.push(items[i as usize].clone());
                         }
-                    };
-                    let mut func_env = Environment::new();
-                    func_env.set("self", obj);
-                    let params: Vec<&String> =
-                        func_def.params.iter().filter(|p| **p != "self").collect();
-                    for (i, param) in params.iter().enumerate() {
-                        if i < args.len() {
-                            func_env.set(param, args[i].clone());
+                        (Value::Str(s), Value::Int(i)) => {
+                            let chars: Vec<char> = s.chars().collect();
+                            if i < 0 || i as usize >= chars.len() {
+                                eprintln!("error: index {} out of bounds", i);
+                                std::process::exit(1);
+                            }
+                            self.push(Value::Str(chars[i as usize].to_string()));
+                        }
+                        (Value::Bytes(b), Value::Int(i)) => {
+                            if i < 0 || i as usize >= b.len() {
+                                eprintln!("error: index {} out of bounds", i);
+                                std::process::exit(1);
+                            }
+                            self.push(Value::Int(b[i as usize] as i64));
+                        }
+                        (obj, idx) => {
+                            eprintln!("error: cannot index {:?} with {:?}", obj, idx);
+                            std::process::exit(1);
                         }
                     }
-                    let frame = Frame {
-                        return_ip: self.ip,
-                        return_env: std::mem::replace(&mut self.env, func_env),
-                        return_chunk: std::mem::replace(&mut self.chunk, func_def.chunk),
-                    };
-                    self.frames.push(frame);
-                    self.ip = 0;
+                }
+                Instruction::Stringify => {
+                    let value = self.pop();
+                    self.push(Value::Str(value.stringify()));
                 }
                 Instruction::Pop => {
                     self.pop();
@@ -231,4 +305,129 @@ impl Machine {
         let l = self.pop();
         self.push(op(l, r));
     }
+}
+
+fn native_method(obj: &Value, method: &str, args: &[Value]) -> Value {
+    match obj {
+        Value::Str(s) => string_method(s, method, args),
+        Value::Bytes(b) => bytes_method(b, method, args),
+        Value::List(items) => list_method(items, method, args),
+        _ => {
+            eprintln!("error: no method '{}' on {:?}", method, obj);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn string_method(s: &str, method: &str, args: &[Value]) -> Value {
+    match method {
+        "upper" => Value::Str(s.to_uppercase()),
+        "lower" => Value::Str(s.to_lowercase()),
+        "trim" => Value::Str(s.trim().to_string()),
+        "contains" => {
+            if let Some(Value::Str(sub)) = args.first() {
+                Value::Bool(s.contains(sub))
+            } else {
+                type_error("contains", args.first())
+            }
+        }
+        "find" => {
+            if let Some(Value::Str(sub)) = args.first() {
+                Value::Int(s.find(sub).map(|i| i as i64).unwrap_or(-1))
+            } else {
+                type_error("find", args.first())
+            }
+        }
+        "replace" => {
+            if args.len() >= 2 {
+                if let (Value::Str(old), Value::Str(new)) = (&args[0], &args[1]) {
+                    Value::Str(s.replace(old, new))
+                } else {
+                    type_error("replace", args.first())
+                }
+            } else {
+                Value::Str(s.to_string())
+            }
+        }
+        "starts_with" => {
+            if let Some(Value::Str(prefix)) = args.first() {
+                Value::Bool(s.starts_with(prefix))
+            } else {
+                type_error("starts_with", args.first())
+            }
+        }
+        "ends_with" => {
+            if let Some(Value::Str(suffix)) = args.first() {
+                Value::Bool(s.ends_with(suffix))
+            } else {
+                type_error("ends_with", args.first())
+            }
+        }
+        "split" => {
+            if let Some(Value::Str(sep)) = args.first() {
+                Value::List(s.split(sep).map(|p| Value::Str(p.to_string())).collect())
+            } else {
+                type_error("split", args.first())
+            }
+        }
+        "slice" => {
+            if args.len() >= 2 {
+                if let (Value::Int(start), Value::Int(end)) = (&args[0], &args[1]) {
+                    let chars: Vec<char> = s.chars().collect();
+                    let start = (*start as usize).min(chars.len());
+                    let end = (*end as usize).min(chars.len());
+                    Value::Str(chars[start..end].iter().collect())
+                } else {
+                    type_error("slice", args.first())
+                }
+            } else {
+                Value::Str(s.to_string())
+            }
+        }
+        _ => {
+            eprintln!("error: undefined string method '{}'", method);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn bytes_method(b: &[u8], method: &str, args: &[Value]) -> Value {
+    match method {
+        "slice" => {
+            if args.len() >= 2 {
+                if let (Value::Int(start), Value::Int(end)) = (&args[0], &args[1]) {
+                    let start = (*start as usize).min(b.len());
+                    let end = (*end as usize).min(b.len());
+                    Value::Bytes(b[start..end].to_vec())
+                } else {
+                    type_error("slice", args.first())
+                }
+            } else {
+                Value::Bytes(b.to_vec())
+            }
+        }
+        "to_string" => Value::Str(String::from_utf8_lossy(b).to_string()),
+        _ => {
+            eprintln!("error: undefined bytes method '{}'", method);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn list_method(_items: &[Value], method: &str, _args: &[Value]) -> Value {
+    match method {
+        "push" => {
+            eprintln!("error: list is immutable, use reassign");
+            std::process::exit(1);
+        }
+        _ => {
+            eprintln!("error: undefined list method '{}'", method);
+            std::process::exit(1);
+        }
+    }
+}
+
+fn type_error(method: &str, arg: Option<&Value>) -> Value {
+    eprintln!("type error: '{}' expects str, got {:?}", method, arg);
+    std::process::exit(1);
 }

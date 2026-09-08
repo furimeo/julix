@@ -1,7 +1,16 @@
 #[derive(Debug, Clone, PartialEq)]
+pub enum FStrPart {
+    Literal(String),
+    Expr(String),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Int(i64),
+    Float(f64),
     Str(String),
+    Bytes(Vec<u8>),
+    FStr(Vec<FStrPart>),
     Ident(String),
     Print,
     PrintLn,
@@ -28,6 +37,8 @@ pub enum Token {
     RParen,
     LBrace,
     RBrace,
+    LBracket,
+    RBracket,
     Plus,
     Minus,
     Star,
@@ -118,10 +129,61 @@ pub fn lex(src: &str) -> Vec<Token> {
                 while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '_') {
                     i += 1;
                 }
-                let dec: String = chars[start..i].iter().filter(|ch| **ch != '_').collect();
-                let n = dec.parse::<i64>().unwrap_or(0);
-                out.push(Token::Int(n));
+                if i < chars.len() && chars[i] == '.' && i + 1 < chars.len() && chars[i + 1] != '.'
+                {
+                    i += 1;
+                    while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '_') {
+                        i += 1;
+                    }
+                    let fstr: String = chars[start..i].iter().filter(|ch| **ch != '_').collect();
+                    let n = fstr.parse::<f64>().unwrap_or(0.0);
+                    out.push(Token::Float(n));
+                } else {
+                    let dec: String = chars[start..i].iter().filter(|ch| **ch != '_').collect();
+                    let n = dec.parse::<i64>().unwrap_or(0);
+                    out.push(Token::Int(n));
+                }
             }
+            continue;
+        }
+
+        if c == 'b' && i + 1 < chars.len() && chars[i + 1] == '"' {
+            i += 2;
+            let mut bytes = Vec::new();
+            while i < chars.len() && chars[i] != '"' {
+                if chars[i] == '\\' && i + 1 < chars.len() {
+                    i += 1;
+                    match chars[i] {
+                        'n' => bytes.push(b'\n'),
+                        't' => bytes.push(b'\t'),
+                        'r' => bytes.push(b'\r'),
+                        '\\' => bytes.push(b'\\'),
+                        '"' => bytes.push(b'"'),
+                        '0' => bytes.push(0),
+                        'x' => {
+                            let hex: String = chars[i + 1..i + 3].iter().collect();
+                            i += 2;
+                            bytes.push(u8::from_str_radix(&hex, 16).unwrap_or(0));
+                        }
+                        other => bytes.push(other as u8),
+                    }
+                    i += 1;
+                } else {
+                    let mut buf = [0u8; 4];
+                    let s = chars[i].encode_utf8(&mut buf);
+                    bytes.extend_from_slice(s.as_bytes());
+                    i += 1;
+                }
+            }
+            i += 1;
+            out.push(Token::Bytes(bytes));
+            continue;
+        }
+
+        if c == 'f' && i + 1 < chars.len() && chars[i + 1] == '"' {
+            i += 2;
+            let parts = lex_fstring(&chars, &mut i);
+            out.push(Token::FStr(parts));
             continue;
         }
 
@@ -138,6 +200,12 @@ pub fn lex(src: &str) -> Vec<Token> {
                         '\\' => s.push('\\'),
                         '"' => s.push('"'),
                         '0' => s.push('\0'),
+                        'x' => {
+                            let hex: String = chars[i + 1..i + 3].iter().collect();
+                            i += 2;
+                            let byte = u8::from_str_radix(&hex, 16).unwrap_or(0);
+                            s.push(byte as char);
+                        }
                         other => s.push(other),
                     }
                     i += 1;
@@ -198,6 +266,14 @@ pub fn lex(src: &str) -> Vec<Token> {
             }
             '}' => {
                 out.push(Token::RBrace);
+                i += 1;
+            }
+            '[' => {
+                out.push(Token::LBracket);
+                i += 1;
+            }
+            ']' => {
+                out.push(Token::RBracket);
                 i += 1;
             }
             '+' => {
@@ -304,4 +380,50 @@ pub fn lex(src: &str) -> Vec<Token> {
 
     out.push(Token::Eof);
     out
+}
+
+fn lex_fstring(chars: &[char], i: &mut usize) -> Vec<FStrPart> {
+    let mut parts = Vec::new();
+    let mut literal = String::new();
+
+    while *i < chars.len() && chars[*i] != '"' {
+        if chars[*i] == '{' && *i + 1 < chars.len() && chars[*i + 1] == '{' {
+            literal.push('{');
+            *i += 2;
+        } else if chars[*i] == '}' && *i + 1 < chars.len() && chars[*i + 1] == '}' {
+            literal.push('}');
+            *i += 2;
+        } else if chars[*i] == '{' {
+            if !literal.is_empty() {
+                parts.push(FStrPart::Literal(literal.clone()));
+                literal.clear();
+            }
+            *i += 1;
+            let mut expr = String::new();
+            let mut depth = 1;
+            while *i < chars.len() && depth > 0 {
+                if chars[*i] == '{' {
+                    depth += 1;
+                } else if chars[*i] == '}' {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                expr.push(chars[*i]);
+                *i += 1;
+            }
+            *i += 1;
+            parts.push(FStrPart::Expr(expr));
+        } else {
+            literal.push(chars[*i]);
+            *i += 1;
+        }
+    }
+    *i += 1;
+
+    if !literal.is_empty() {
+        parts.push(FStrPart::Literal(literal));
+    }
+    parts
 }

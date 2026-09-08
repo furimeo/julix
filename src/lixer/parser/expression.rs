@@ -172,9 +172,21 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Expression::Int(n)
             }
+            Token::Float(n) => {
+                self.advance();
+                Expression::Float(n)
+            }
             Token::Str(s) => {
                 self.advance();
                 Expression::Str(s)
+            }
+            Token::Bytes(b) => {
+                self.advance();
+                Expression::Bytes(b)
+            }
+            Token::FStr(parts) => {
+                self.advance();
+                Expression::FString(parts)
             }
             Token::True => {
                 self.advance();
@@ -193,6 +205,19 @@ impl<'a> Parser<'a> {
                 let expr = self.parse_expression();
                 self.expect(Token::RParen);
                 expr
+            }
+            Token::LBracket => {
+                self.advance();
+                let mut items = Vec::new();
+                if !matches!(self.peek(), Token::RBracket) {
+                    items.push(self.parse_expression());
+                    while matches!(self.peek(), Token::Comma) {
+                        self.advance();
+                        items.push(self.parse_expression());
+                    }
+                }
+                self.expect(Token::RBracket);
+                Expression::List(items)
             }
             t => {
                 eprintln!("parse error: expected literal or identifier, got {:?}", t);
@@ -262,6 +287,15 @@ impl<'a> Parser<'a> {
                         field,
                     };
                 }
+                Token::LBracket => {
+                    self.advance();
+                    let index = self.parse_expression();
+                    self.expect(Token::RBracket);
+                    expr = Expression::Index {
+                        object: Box::new(expr),
+                        index: Box::new(index),
+                    };
+                }
                 _ => break,
             }
         }
@@ -269,12 +303,10 @@ impl<'a> Parser<'a> {
     }
 
     fn is_named_args(&self) -> bool {
-        if let Token::Ident(_) = self.peek() {
-            if let Some(Token::Colon) = self.tokens.get(self.pos + 1) {
-                return true;
-            }
-        }
-        false
+        matches!(
+            (self.peek(), self.tokens.get(self.pos + 1)),
+            (Token::Ident(_), Some(Token::Colon))
+        )
     }
 
     fn parse_named_arg(&mut self) -> (String, Expression) {

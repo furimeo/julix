@@ -88,6 +88,7 @@ pub fn deserialize(path: &str) -> std::io::Result<Chunk> {
 fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
     let (tag, payload) = match instr {
         Instruction::LoadInt(n) => (0u8, n.to_le_bytes().to_vec()),
+        Instruction::LoadFloat(n) => (66u8, n.to_le_bytes().to_vec()),
         Instruction::LoadStr(s) => {
             let bytes = s.as_bytes();
             let mut payload = (bytes.len() as u32).to_le_bytes().to_vec();
@@ -166,6 +167,14 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
             (57u8, payload)
         }
         Instruction::Deinit => (61u8, vec![]),
+        Instruction::LoadBytes(b) => {
+            let mut payload = (b.len() as u32).to_le_bytes().to_vec();
+            payload.extend_from_slice(b);
+            (62u8, payload)
+        }
+        Instruction::NewList(count) => (63u8, (*count as u32).to_le_bytes().to_vec()),
+        Instruction::IndexGet => (64u8, vec![]),
+        Instruction::Stringify => (65u8, vec![]),
         Instruction::Pop => (60u8, vec![]),
         Instruction::Halt => (99u8, vec![]),
     };
@@ -296,6 +305,34 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
             (Instruction::MethodCall(method, argc), pos + 4 + len + 4)
         }
         61 => (Instruction::Deinit, pos),
+        62 => {
+            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
+            (
+                Instruction::LoadBytes(data[pos + 4..pos + 4 + len].to_vec()),
+                pos + 4 + len,
+            )
+        }
+        63 => {
+            let count = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                as usize;
+            (Instruction::NewList(count), pos + 4)
+        }
+        64 => (Instruction::IndexGet, pos),
+        65 => (Instruction::Stringify, pos),
+        66 => {
+            let n = f64::from_le_bytes([
+                data[pos],
+                data[pos + 1],
+                data[pos + 2],
+                data[pos + 3],
+                data[pos + 4],
+                data[pos + 5],
+                data[pos + 6],
+                data[pos + 7],
+            ]);
+            (Instruction::LoadFloat(n), pos + 8)
+        }
         60 => (Instruction::Pop, pos),
         99 => (Instruction::Halt, pos),
         _ => {

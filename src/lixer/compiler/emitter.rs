@@ -217,6 +217,7 @@ fn patch_loop_jumps(chunk: &mut Chunk, loop_start: usize, continue_target: usize
 fn compile_expression(expr: &Expression, chunk: &mut Chunk) {
     match expr {
         Expression::Int(n) => chunk.push(Instruction::LoadInt(*n)),
+        Expression::Float(n) => chunk.push(Instruction::LoadFloat(*n)),
         Expression::Str(s) => chunk.push(Instruction::LoadStr(s.clone())),
         Expression::Bool(b) => chunk.push(Instruction::LoadBool(*b)),
         Expression::Ident(name) => chunk.push(Instruction::LoadVar(name.clone())),
@@ -322,6 +323,48 @@ fn compile_expression(expr: &Expression, chunk: &mut Chunk) {
                 compile_expression(e, chunk);
             }
             chunk.push(Instruction::Construct(type_name.clone(), field_names));
+        }
+        Expression::Bytes(b) => {
+            chunk.push(Instruction::LoadBytes(b.clone()));
+        }
+        Expression::List(items) => {
+            for item in items {
+                compile_expression(item, chunk);
+            }
+            chunk.push(Instruction::NewList(items.len()));
+        }
+        Expression::Index { object, index } => {
+            compile_expression(object, chunk);
+            compile_expression(index, chunk);
+            chunk.push(Instruction::IndexGet);
+        }
+        Expression::FString(parts) => {
+            let mut first = true;
+            for part in parts {
+                match part {
+                    crate::lixer::lexer::token::FStrPart::Literal(s) => {
+                        chunk.push(Instruction::LoadStr(s.clone()));
+                        if !first {
+                            chunk.push(Instruction::Add);
+                        }
+                        first = false;
+                    }
+                    crate::lixer::lexer::token::FStrPart::Expr(e) => {
+                        let tokens = crate::lixer::lexer::token::lex(e);
+                        let mut p = crate::lixer::parser::expression::Parser::new(&tokens);
+                        let expr = p.parse_expression();
+                        compile_expression(&expr, chunk);
+                        chunk.push(Instruction::Stringify);
+                        if !first {
+                            chunk.push(Instruction::Add);
+                        }
+                        first = false;
+                    }
+                }
+            }
+            if first {
+                chunk.push(Instruction::LoadStr(String::new()));
+            }
         }
     }
 }

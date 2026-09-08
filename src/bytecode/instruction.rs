@@ -2,6 +2,7 @@
 pub enum Instruction {
     // literals
     LoadInt(i64),
+    LoadFloat(f64),
     LoadStr(String),
     LoadBool(bool),
     LoadConst(usize),
@@ -48,6 +49,12 @@ pub enum Instruction {
     SetField(String),
     MethodCall(String, usize),
     Deinit,
+
+    // literals
+    LoadBytes(Vec<u8>),
+    NewList(usize),
+    IndexGet,
+    Stringify,
 
     // misc
     Pop,
