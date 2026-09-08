@@ -44,8 +44,8 @@ Independent of the LixVM version. JuJIT is a layer on top of LixVM.
 
 | Component | Version | Notes |
 |---|---|---|
-| Julix | 0.0.8 | string/bytes/list literals, f-string, float, native methods |
-| LixVM | 0.0.7 | LoadBytes, NewList, IndexGet, Stringify, LoadFloat, native method dispatch |
+| Julix | 0.1.0 | Phase 1 complete: string/bytes/list/map, f-string, error handling, FFI, file I/O |
+| LixVM | 0.1.0 | native function table, catch stack, null, buffer ops |
 | JuJIT | 0.0.0 | not built yet, phase 2 |
 
 ## Format
