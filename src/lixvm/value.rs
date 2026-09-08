@@ -4,6 +4,7 @@ pub enum Value {
     Float(f64),
     Str(String),
     Bool(bool),
+    Null,
     Bytes(Vec<u8>),
     List(Vec<Value>),
     Map(std::collections::HashMap<String, Value>),
@@ -26,6 +27,7 @@ impl Value {
             Value::Float(n) => format_float(*n),
             Value::Str(s) => s.clone(),
             Value::Bool(b) => b.to_string(),
+            Value::Null => "null".to_string(),
             Value::Bytes(b) => {
                 let parts: Vec<String> = b.iter().map(|byte| byte.to_string()).collect();
                 format!("b[{}]", parts.join(", "))

@@ -1,0 +1,6 @@
+// step 11: native functions
+println(clock());
+println(len("hello"));
+println(len([1, 2, 3, 4, 5]));
+let e = env();
+println(e["PATH"] != null);

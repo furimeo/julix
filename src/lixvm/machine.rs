@@ -23,6 +23,7 @@ pub struct Machine {
     chunk: Chunk,
     env: Environment,
     functions: FunctionTable,
+    native: crate::lixvm::native::NativeTable,
     stack: Vec<Value>,
     ip: usize,
     frames: Vec<Frame>,
@@ -35,6 +36,7 @@ impl Machine {
             chunk,
             env: Environment::new(),
             functions,
+            native: crate::lixvm::native::NativeTable::new(),
             stack: Vec::new(),
             ip: 0,
             frames: Vec::new(),
@@ -52,6 +54,7 @@ impl Machine {
             match instr {
                 Instruction::LoadInt(n) => self.push(Value::Int(n)),
                 Instruction::LoadFloat(n) => self.push(Value::Float(n)),
+                Instruction::LoadNull => self.push(Value::Null),
                 Instruction::LoadStr(s) => self.push(Value::Str(s)),
                 Instruction::LoadBool(b) => self.push(Value::Bool(b)),
                 Instruction::LoadConst(_) => {}
@@ -106,26 +109,30 @@ impl Machine {
                         args.push(self.pop());
                     }
                     args.reverse();
-                    let func_def = match self.functions.get(&name) {
-                        Some(f) => f.clone(),
-                        None => {
-                            eprintln!("error: undefined function '{}'", name);
-                            std::process::exit(1);
+                    if let Some(result) = self.native.call(&name, &args) {
+                        self.push(result);
+                    } else {
+                        let func_def = match self.functions.get(&name) {
+                            Some(f) => f.clone(),
+                            None => {
+                                eprintln!("error: undefined function '{}'", name);
+                                std::process::exit(1);
+                            }
+                        };
+                        let mut func_env = Environment::new();
+                        for (i, param) in func_def.params.iter().enumerate() {
+                            if i < args.len() {
+                                func_env.set(param, args[i].clone());
+                            }
                         }
-                    };
-                    let mut func_env = Environment::new();
-                    for (i, param) in func_def.params.iter().enumerate() {
-                        if i < args.len() {
-                            func_env.set(param, args[i].clone());
-                        }
+                        let frame = Frame {
+                            return_ip: self.ip,
+                            return_env: std::mem::replace(&mut self.env, func_env),
+                            return_chunk: std::mem::replace(&mut self.chunk, func_def.chunk),
+                        };
+                        self.frames.push(frame);
+                        self.ip = 0;
                     }
-                    let frame = Frame {
-                        return_ip: self.ip,
-                        return_env: std::mem::replace(&mut self.env, func_env),
-                        return_chunk: std::mem::replace(&mut self.chunk, func_def.chunk),
-                    };
-                    self.frames.push(frame);
-                    self.ip = 0;
                 }
                 Instruction::Return => {
                     let value = self.pop();

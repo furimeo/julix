@@ -4,6 +4,7 @@ pub enum Expression {
     Float(f64),
     Str(String),
     Bool(bool),
+    Null,
     Ident(String),
     Add(Box<Expression>, Box<Expression>),
     Sub(Box<Expression>, Box<Expression>),

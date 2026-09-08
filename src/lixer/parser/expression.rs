@@ -196,6 +196,10 @@ impl<'a> Parser<'a> {
                 self.advance();
                 Expression::Bool(false)
             }
+            Token::Null => {
+                self.advance();
+                Expression::Null
+            }
             Token::Ident(name) => {
                 self.advance();
                 Expression::Ident(name)

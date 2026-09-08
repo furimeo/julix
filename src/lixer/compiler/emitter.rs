@@ -260,6 +260,7 @@ fn compile_expression(expr: &Expression, chunk: &mut Chunk) {
     match expr {
         Expression::Int(n) => chunk.push(Instruction::LoadInt(*n)),
         Expression::Float(n) => chunk.push(Instruction::LoadFloat(*n)),
+        Expression::Null => chunk.push(Instruction::LoadNull),
         Expression::Str(s) => chunk.push(Instruction::LoadStr(s.clone())),
         Expression::Bool(b) => chunk.push(Instruction::LoadBool(*b)),
         Expression::Ident(name) => chunk.push(Instruction::LoadVar(name.clone())),

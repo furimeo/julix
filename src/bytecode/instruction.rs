@@ -3,6 +3,7 @@ pub enum Instruction {
     // literals
     LoadInt(i64),
     LoadFloat(f64),
+    LoadNull,
     LoadStr(String),
     LoadBool(bool),
     LoadConst(usize),

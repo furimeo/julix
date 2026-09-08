@@ -89,6 +89,7 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
     let (tag, payload) = match instr {
         Instruction::LoadInt(n) => (0u8, n.to_le_bytes().to_vec()),
         Instruction::LoadFloat(n) => (66u8, n.to_le_bytes().to_vec()),
+        Instruction::LoadNull => (71u8, vec![]),
         Instruction::LoadStr(s) => {
             let bytes = s.as_bytes();
             let mut payload = (bytes.len() as u32).to_le_bytes().to_vec();
@@ -358,6 +359,7 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
             ]);
             (Instruction::LoadFloat(n), pos + 8)
         }
+        71 => (Instruction::LoadNull, pos),
         60 => (Instruction::Pop, pos),
         99 => (Instruction::Halt, pos),
         _ => {
