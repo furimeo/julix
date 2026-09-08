@@ -59,13 +59,7 @@ pub fn lex(src: &str) -> Vec<Token> {
     while i < chars.len() {
         let c = chars[i];
 
-        if c == ' ' || c == '\t' || c == '\r' {
-            i += 1;
-            continue;
-        }
-
-        if c == '\n' {
-            out.push(Token::Newline);
+        if c == ' ' || c == '\t' || c == '\r' || c == '\n' {
             i += 1;
             continue;
         }

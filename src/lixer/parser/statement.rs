@@ -259,10 +259,7 @@ fn parse_function(p: &mut Parser) -> Statement {
 
 fn parse_return(p: &mut Parser) -> Statement {
     p.advance();
-    if matches!(
-        p.peek(),
-        Token::Semicolon | Token::Newline | Token::Eof | Token::RBrace
-    ) {
+    if matches!(p.peek(), Token::Semicolon | Token::Eof | Token::RBrace) {
         expect_end(p);
         return Statement::Return(None);
     }
@@ -276,12 +273,9 @@ fn expect_end(p: &mut Parser) {
         Token::Semicolon => {
             p.advance();
         }
-        Token::Newline => {
-            p.advance();
-        }
-        Token::Eof => {}
+        Token::Eof | Token::RBrace => {}
         _ => {
-            eprintln!("parse error: expected ';' or newline, got {:?}", p.peek());
+            eprintln!("parse error: expected ';', got {:?}", p.peek());
             std::process::exit(1);
         }
     }
