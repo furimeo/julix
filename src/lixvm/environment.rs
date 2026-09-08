@@ -2,6 +2,7 @@ use crate::lixvm::value::Value;
 
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct Environment {
     vars: HashMap<String, Value>,
 }

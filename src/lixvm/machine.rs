@@ -12,6 +12,13 @@ struct Frame {
     return_chunk: Chunk,
 }
 
+struct CatchHandler {
+    catch_ip: usize,
+    return_ip: usize,
+    return_env: Environment,
+    return_chunk: Chunk,
+}
+
 pub struct Machine {
     chunk: Chunk,
     env: Environment,
@@ -19,6 +26,7 @@ pub struct Machine {
     stack: Vec<Value>,
     ip: usize,
     frames: Vec<Frame>,
+    catch_stack: Vec<CatchHandler>,
 }
 
 impl Machine {
@@ -30,6 +38,7 @@ impl Machine {
             stack: Vec::new(),
             ip: 0,
             frames: Vec::new(),
+            catch_stack: Vec::new(),
         }
     }
 
@@ -337,6 +346,29 @@ impl Machine {
                 Instruction::Deinit => {
                     // TODO: call deinit on objects going out of scope
                     // requires GC or scope tracking, deferred to phase 1
+                }
+                Instruction::Throw => {
+                    let err = self.pop();
+                    if let Some(handler) = self.catch_stack.pop() {
+                        self.ip = handler.catch_ip;
+                        self.env = handler.return_env;
+                        self.chunk = handler.return_chunk;
+                        self.frames.truncate(self.frames.len());
+                        self.push(err);
+                    } else {
+                        eprintln!("uncaught error: {}", err.stringify());
+                        std::process::exit(1);
+                    }
+                }
+                Instruction::TryCatch(catch_ip, end_ip) => {
+                    let handler = CatchHandler {
+                        catch_ip,
+                        return_ip: self.ip,
+                        return_env: self.env.clone(),
+                        return_chunk: self.chunk.clone(),
+                    };
+                    self.catch_stack.push(handler);
+                    let _ = end_ip;
                 }
                 Instruction::Halt => break,
             }

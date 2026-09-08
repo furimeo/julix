@@ -50,6 +50,10 @@ pub enum Instruction {
     MethodCall(String, usize),
     Deinit,
 
+    // error handling
+    Throw,
+    TryCatch(usize, usize),
+
     // literals
     LoadBytes(Vec<u8>),
     NewList(usize),

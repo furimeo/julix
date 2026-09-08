@@ -210,6 +210,35 @@ fn compile_statement(
                 std::process::exit(1);
             }
         }
+        Statement::Throw(expr) => {
+            compile_expression(expr, chunk);
+            chunk.push(Instruction::Throw);
+        }
+        Statement::Try {
+            body,
+            catch_var,
+            catch_body,
+        } => {
+            let try_catch_pos = chunk.len();
+            chunk.push(Instruction::TryCatch(0, 0));
+            for s in body {
+                compile_statement(s, chunk, functions, loop_info);
+            }
+            let jump_end_pos = chunk.len();
+            chunk.push(Instruction::Jump(0));
+            let catch_pos = chunk.len();
+            if let Some(var) = catch_var {
+                chunk.push(Instruction::StoreVar(var.clone()));
+            } else {
+                chunk.push(Instruction::Pop);
+            }
+            for s in catch_body {
+                compile_statement(s, chunk, functions, loop_info);
+            }
+            let end_pos = chunk.len();
+            chunk.code[try_catch_pos] = Instruction::TryCatch(catch_pos, end_pos);
+            chunk.code[jump_end_pos] = Instruction::Jump(end_pos);
+        }
     }
 }
 

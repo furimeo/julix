@@ -1,0 +1,22 @@
+// step 10: error handling
+function divide(a, b) {
+    if (b == 0) {
+        throw "division by zero";
+    }
+    return a / b;
+}
+
+try {
+    let result = divide(10, 0);
+    println(result);
+} catch (err) {
+    println("caught error:");
+    println(err);
+}
+
+try {
+    let result = divide(10, 2);
+    println(result);
+} catch (err) {
+    println("should not print");
+}

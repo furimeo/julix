@@ -56,6 +56,12 @@ pub enum Statement {
         index: Expression,
         expr: Expression,
     },
+    Try {
+        body: Vec<Statement>,
+        catch_var: Option<String>,
+        catch_body: Vec<Statement>,
+    },
+    Throw(Expression),
 }
 
 #[derive(Debug, Clone)]

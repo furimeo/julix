@@ -167,6 +167,13 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
             (57u8, payload)
         }
         Instruction::Deinit => (61u8, vec![]),
+        Instruction::Throw => (69u8, vec![]),
+        Instruction::TryCatch(catch_ip, end_ip) => {
+            let mut payload = Vec::new();
+            payload.extend_from_slice(&(*catch_ip as u32).to_le_bytes());
+            payload.extend_from_slice(&(*end_ip as u32).to_le_bytes());
+            (70u8, payload)
+        }
         Instruction::LoadBytes(b) => {
             let mut payload = (b.len() as u32).to_le_bytes().to_vec();
             payload.extend_from_slice(b);
@@ -307,6 +314,16 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
             (Instruction::MethodCall(method, argc), pos + 4 + len + 4)
         }
         61 => (Instruction::Deinit, pos),
+        69 => (Instruction::Throw, pos),
+        70 => {
+            let catch_ip =
+                u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                    as usize;
+            let end_ip =
+                u32::from_le_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]])
+                    as usize;
+            (Instruction::TryCatch(catch_ip, end_ip), pos + 8)
+        }
         62 => {
             let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
                 as usize;

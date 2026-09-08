@@ -33,6 +33,10 @@ pub enum Token {
     Type,
     Colon,
     Comma,
+    Try,
+    Catch,
+    Throw,
+    Question,
     LParen,
     RParen,
     LBrace,
@@ -243,6 +247,9 @@ pub fn lex(src: &str) -> Vec<Token> {
                 "function" => out.push(Token::Function),
                 "return" => out.push(Token::Return),
                 "type" => out.push(Token::Type),
+                "try" => out.push(Token::Try),
+                "catch" => out.push(Token::Catch),
+                "throw" => out.push(Token::Throw),
                 "and" => out.push(Token::And),
                 "or" => out.push(Token::Or),
                 "not" => out.push(Token::Not),
@@ -352,6 +359,10 @@ pub fn lex(src: &str) -> Vec<Token> {
             }
             ';' => {
                 out.push(Token::Semicolon);
+                i += 1;
+            }
+            '?' => {
+                out.push(Token::Question);
                 i += 1;
             }
             ':' => {

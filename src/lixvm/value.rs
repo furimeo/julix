@@ -8,6 +8,7 @@ pub enum Value {
     List(Vec<Value>),
     Map(std::collections::HashMap<String, Value>),
     Object(String, std::collections::HashMap<String, Value>),
+    Error(String),
 }
 
 fn format_float(n: f64) -> String {
@@ -47,6 +48,7 @@ impl Value {
                     .collect();
                 format!("{{{}}}", pairs.join(", "))
             }
+            Value::Error(msg) => format!("Error: {}", msg),
         }
     }
 }

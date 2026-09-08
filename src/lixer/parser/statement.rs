@@ -57,6 +57,8 @@ fn parse_statement(p: &mut Parser) -> Statement {
         Token::Function => parse_function(p),
         Token::Return => parse_return(p),
         Token::Type => parse_type(p),
+        Token::Try => parse_try(p),
+        Token::Throw => parse_throw(p),
         Token::Break => {
             p.advance();
             expect_end(p);
@@ -235,6 +237,45 @@ fn parse_type(p: &mut Parser) -> Statement {
         fields,
         methods,
     }
+}
+
+fn parse_try(p: &mut Parser) -> Statement {
+    p.advance();
+    let body = parse_block(p);
+    let catch_var = None;
+    let catch_body = Vec::new();
+    if matches!(p.peek(), Token::Catch) {
+        p.advance();
+        if matches!(p.peek(), Token::LParen) {
+            p.advance();
+            let var = expect_ident(p);
+            p.expect(Token::RParen);
+            let body2 = parse_block(p);
+            return Statement::Try {
+                body,
+                catch_var: Some(var),
+                catch_body: body2,
+            };
+        }
+        let body2 = parse_block(p);
+        return Statement::Try {
+            body,
+            catch_var,
+            catch_body: body2,
+        };
+    }
+    Statement::Try {
+        body,
+        catch_var,
+        catch_body,
+    }
+}
+
+fn parse_throw(p: &mut Parser) -> Statement {
+    p.advance();
+    let expr = p.parse_expression();
+    expect_end(p);
+    Statement::Throw(expr)
 }
 
 fn expect_ident(p: &mut Parser) -> String {
