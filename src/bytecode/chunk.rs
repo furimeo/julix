@@ -11,7 +11,8 @@ pub struct Chunk {
 #[derive(Debug, Clone)]
 pub struct FunctionDef {
     pub chunk: Chunk,
-    pub params: Vec<String>,
+    pub params: Vec<u16>,
+    pub slot_count: u16,
 }
 
 #[derive(Debug, Clone)]
@@ -97,18 +98,8 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
             (1u8, payload)
         }
         Instruction::LoadBool(b) => (2u8, vec![if *b { 1 } else { 0 }]),
-        Instruction::LoadVar(name) => {
-            let bytes = name.as_bytes();
-            let mut payload = (bytes.len() as u32).to_le_bytes().to_vec();
-            payload.extend_from_slice(bytes);
-            (4u8, payload)
-        }
-        Instruction::StoreVar(name) => {
-            let bytes = name.as_bytes();
-            let mut payload = (bytes.len() as u32).to_le_bytes().to_vec();
-            payload.extend_from_slice(bytes);
-            (5u8, payload)
-        }
+        Instruction::LoadSlot(slot) => (4u8, slot.to_le_bytes().to_vec()),
+        Instruction::StoreSlot(slot) => (5u8, slot.to_le_bytes().to_vec()),
         Instruction::Add => (10u8, vec![]),
         Instruction::Sub => (11u8, vec![]),
         Instruction::Mul => (12u8, vec![]),
@@ -216,16 +207,12 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
         }
         2 => (Instruction::LoadBool(data[pos] == 1), pos + 1),
         4 => {
-            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-                as usize;
-            let s = String::from_utf8_lossy(&data[pos + 4..pos + 4 + len]).to_string();
-            (Instruction::LoadVar(s), pos + 4 + len)
+            let slot = u16::from_le_bytes([data[pos], data[pos + 1]]);
+            (Instruction::LoadSlot(slot), pos + 2)
         }
         5 => {
-            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-                as usize;
-            let s = String::from_utf8_lossy(&data[pos + 4..pos + 4 + len]).to_string();
-            (Instruction::StoreVar(s), pos + 4 + len)
+            let slot = u16::from_le_bytes([data[pos], data[pos + 1]]);
+            (Instruction::StoreSlot(slot), pos + 2)
         }
         10 => (Instruction::Add, pos),
         11 => (Instruction::Sub, pos),

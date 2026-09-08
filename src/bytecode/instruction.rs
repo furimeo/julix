@@ -8,8 +8,8 @@ pub enum Instruction {
     LoadBool(bool),
 
     // variables
-    LoadVar(String),
-    StoreVar(String),
+    LoadSlot(u16),
+    StoreSlot(u16),
 
     // arithmetic
     Add,

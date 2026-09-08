@@ -76,8 +76,8 @@ fn run_julix(args: &[String]) {
 
     let tokens = lixer::lexer::token::lex(&source);
     let statements = lixer::parser::parse(&tokens);
-    let (chunk, functions) = lixer::compiler::emitter::compile(&statements);
-    let mut machine = lixvm::machine::Machine::new(chunk, functions);
+    let (chunk, functions, slot_count) = lixer::compiler::emitter::compile(&statements);
+    let mut machine = lixvm::machine::Machine::new(chunk, functions, slot_count);
     machine.run();
 }
 
@@ -92,7 +92,7 @@ fn compile_file(path: &str) {
 
     let tokens = lixer::lexer::token::lex(&source);
     let statements = lixer::parser::parse(&tokens);
-    let (chunk, _functions) = lixer::compiler::emitter::compile(&statements);
+    let (chunk, _functions, _slot_count) = lixer::compiler::emitter::compile(&statements);
 
     let out_path = Path::new(path).with_extension("jlxr");
     match bytecode::chunk::serialize(&chunk, &out_path) {
@@ -124,7 +124,7 @@ fn run_lixvm(args: &[String]) {
         }
     };
     let functions = bytecode::chunk::FunctionTable::new();
-    let mut machine = lixvm::machine::Machine::new(chunk, functions);
+    let mut machine = lixvm::machine::Machine::new(chunk, functions, 256);
     machine.run();
 }
 

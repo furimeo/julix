@@ -32,10 +32,10 @@ pub struct Machine {
 }
 
 impl Machine {
-    pub fn new(chunk: Chunk, functions: FunctionTable) -> Self {
+    pub fn new(chunk: Chunk, functions: FunctionTable, slot_count: u16) -> Self {
         Machine {
             chunk,
-            env: Environment::new(),
+            env: Environment::new(slot_count as usize),
             functions,
             native: crate::lixvm::native::NativeTable::new(),
             stack: Vec::new(),
@@ -65,16 +65,10 @@ impl Machine {
                 Instruction::LoadNull => self.push(Value::Null),
                 Instruction::LoadStr(s) => self.push(Value::Str(s)),
                 Instruction::LoadBool(b) => self.push(Value::Bool(b)),
-                Instruction::LoadVar(name) => match self.env.get(&name) {
-                    Some(value) => self.push(value.clone()),
-                    None => {
-                        eprintln!("error: undefined variable '{}'", name);
-                        std::process::exit(1);
-                    }
-                },
-                Instruction::StoreVar(name) => {
+                Instruction::LoadSlot(slot) => self.push(self.env.get_slot(slot).clone()),
+                Instruction::StoreSlot(slot) => {
                     let value = self.pop();
-                    self.env.set(&name, value);
+                    self.env.set_slot(slot, value);
                 }
                 Instruction::Add => self.binary(arithmetic::add),
                 Instruction::Sub => self.binary(arithmetic::sub),
@@ -126,10 +120,10 @@ impl Machine {
                                 std::process::exit(1);
                             }
                         };
-                        let mut func_env = Environment::new();
-                        for (i, param) in func_def.params.iter().enumerate() {
+                        let mut func_env = Environment::new(func_def.slot_count as usize);
+                        for (i, &slot) in func_def.params.iter().enumerate() {
                             if i < args.len() {
-                                func_env.set(param, args[i].clone());
+                                func_env.set_slot(slot, args[i].clone());
                             }
                         }
                         let frame = Frame {
@@ -245,13 +239,15 @@ impl Machine {
                                 std::process::exit(1);
                             }
                         };
-                        let mut func_env = Environment::new();
-                        func_env.set("self", obj);
-                        let params: Vec<&String> =
-                            func_def.params.iter().filter(|p| **p != "self").collect();
-                        for (i, param) in params.iter().enumerate() {
+                        let mut func_env = Environment::new(func_def.slot_count as usize);
+                        if let Some(&self_slot) = func_def.params.first() {
+                            func_env.set_slot(self_slot, obj);
+                        }
+                        let param_slots: Vec<u16> =
+                            func_def.params.iter().skip(1).copied().collect();
+                        for (i, &slot) in param_slots.iter().enumerate() {
                             if i < args.len() {
-                                func_env.set(param, args[i].clone());
+                                func_env.set_slot(slot, args[i].clone());
                             }
                         }
                         let frame = Frame {

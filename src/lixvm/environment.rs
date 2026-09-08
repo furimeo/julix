@@ -1,30 +1,31 @@
 use crate::lixvm::value::Value;
 
-use std::collections::HashMap;
-
 #[derive(Clone)]
 pub struct Environment {
-    vars: HashMap<String, Value>,
+    slots: Vec<Value>,
 }
 
 impl Environment {
-    pub fn new() -> Self {
+    pub fn new(slot_count: usize) -> Self {
         Environment {
-            vars: HashMap::new(),
+            slots: vec![Value::Null; slot_count],
         }
     }
 
-    pub fn set(&mut self, name: &str, value: Value) {
-        self.vars.insert(name.to_string(), value);
+    pub fn get_slot(&self, index: u16) -> &Value {
+        &self.slots[index as usize]
     }
 
-    pub fn get(&self, name: &str) -> Option<&Value> {
-        self.vars.get(name)
+    pub fn set_slot(&mut self, index: u16, value: Value) {
+        if (index as usize) >= self.slots.len() {
+            self.slots.resize(index as usize + 1, Value::Null);
+        }
+        self.slots[index as usize] = value;
     }
 
     pub fn objects(&self) -> Vec<Value> {
-        self.vars
-            .values()
+        self.slots
+            .iter()
             .filter_map(|v| match v {
                 Value::Object(_, _) => Some(v.clone()),
                 _ => None,
