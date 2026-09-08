@@ -1,5 +1,4 @@
 use crate::bytecode::instruction::Instruction;
-use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
@@ -17,22 +16,46 @@ pub struct FunctionDef {
 
 #[derive(Debug, Clone)]
 pub struct FunctionTable {
-    pub funcs: HashMap<String, FunctionDef>,
+    pub funcs: Vec<FunctionDef>,
+    pub names: Vec<String>,
 }
 
 impl FunctionTable {
     pub fn new() -> Self {
         FunctionTable {
-            funcs: HashMap::new(),
+            funcs: Vec::new(),
+            names: Vec::new(),
         }
     }
 
-    pub fn insert(&mut self, name: String, func: FunctionDef) {
-        self.funcs.insert(name, func);
+    pub fn get_or_alloc(&mut self, name: &str) -> u32 {
+        if let Some(id) = self.names.iter().position(|n| n == name) {
+            return id as u32;
+        }
+        self.names.push(name.to_string());
+        self.funcs.push(FunctionDef {
+            chunk: Chunk::new(),
+            params: Vec::new(),
+            slot_count: 0,
+        });
+        (self.funcs.len() - 1) as u32
     }
 
-    pub fn get(&self, name: &str) -> Option<&FunctionDef> {
-        self.funcs.get(name)
+    pub fn define(&mut self, id: u32, func: FunctionDef) {
+        if (id as usize) < self.funcs.len() {
+            self.funcs[id as usize] = func;
+        }
+    }
+
+    pub fn get(&self, id: u32) -> Option<&FunctionDef> {
+        self.funcs.get(id as usize)
+    }
+
+    pub fn get_by_name(&self, name: &str) -> Option<(u32, &FunctionDef)> {
+        self.names
+            .iter()
+            .position(|n| n == name)
+            .map(|i| (i as u32, &self.funcs[i]))
     }
 }
 
@@ -118,10 +141,8 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
         Instruction::JumpIfFalse(t) => (41u8, (*t as u32).to_le_bytes().to_vec()),
         Instruction::Print => (50u8, vec![]),
         Instruction::PrintLn => (51u8, vec![]),
-        Instruction::Call(name, argc) => {
-            let bytes = name.as_bytes();
-            let mut payload = (bytes.len() as u32).to_le_bytes().to_vec();
-            payload.extend_from_slice(bytes);
+        Instruction::Call(id, argc) => {
+            let mut payload = (*id as u32).to_le_bytes().to_vec();
             payload.extend_from_slice(&(*argc as u32).to_le_bytes());
             (52u8, payload)
         }
@@ -150,10 +171,8 @@ fn instruction_to_bytes(instr: &Instruction, data: &mut Vec<u8>) {
             payload.extend_from_slice(bytes);
             (56u8, payload)
         }
-        Instruction::MethodCall(method, argc) => {
-            let bytes = method.as_bytes();
-            let mut payload = (bytes.len() as u32).to_le_bytes().to_vec();
-            payload.extend_from_slice(bytes);
+        Instruction::MethodCall(id, argc) => {
+            let mut payload = (*id as u32).to_le_bytes().to_vec();
             payload.extend_from_slice(&(*argc as u32).to_le_bytes());
             (57u8, payload)
         }
@@ -241,16 +260,11 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
         50 => (Instruction::Print, pos),
         51 => (Instruction::PrintLn, pos),
         52 => {
-            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-                as usize;
-            let name = String::from_utf8_lossy(&data[pos + 4..pos + 4 + len]).to_string();
-            let argc = u32::from_le_bytes([
-                data[pos + 4 + len],
-                data[pos + 5 + len],
-                data[pos + 6 + len],
-                data[pos + 7 + len],
-            ]) as usize;
-            (Instruction::Call(name, argc), pos + 4 + len + 4)
+            let id = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]);
+            let argc =
+                u32::from_le_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]])
+                    as usize;
+            (Instruction::Call(id, argc), pos + 8)
         }
         53 => (Instruction::Return, pos),
         54 => {
@@ -284,16 +298,11 @@ fn bytes_to_instruction(data: &[u8], pos: usize) -> (Instruction, usize) {
             (Instruction::SetField(field), pos + 4 + len)
         }
         57 => {
-            let len = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
-                as usize;
-            let method = String::from_utf8_lossy(&data[pos + 4..pos + 4 + len]).to_string();
-            let argc = u32::from_le_bytes([
-                data[pos + 4 + len],
-                data[pos + 5 + len],
-                data[pos + 6 + len],
-                data[pos + 7 + len],
-            ]) as usize;
-            (Instruction::MethodCall(method, argc), pos + 4 + len + 4)
+            let id = u32::from_le_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]);
+            let argc =
+                u32::from_le_bytes([data[pos + 4], data[pos + 5], data[pos + 6], data[pos + 7]])
+                    as usize;
+            (Instruction::MethodCall(id, argc), pos + 8)
         }
         61 => (Instruction::Deinit, pos),
         69 => (Instruction::Throw, pos),

@@ -104,19 +104,20 @@ impl Machine {
                     let value = self.pop();
                     println!("{}", value.stringify());
                 }
-                Instruction::Call(name, argc) => {
+                Instruction::Call(func_id, argc) => {
                     let mut args = Vec::new();
                     for _ in 0..argc {
                         args.push(self.pop());
                     }
                     args.reverse();
+                    let name = self.functions.names[func_id as usize].clone();
                     if let Some(result) = self.native.call(&name, &args) {
                         self.push(result);
                     } else {
-                        let func_def = match self.functions.get(&name) {
+                        let func_def = match self.functions.get(func_id) {
                             Some(f) => f.clone(),
                             None => {
-                                eprintln!("error: undefined function '{}'", name);
+                                eprintln!("error: undefined function id {}", func_id);
                                 std::process::exit(1);
                             }
                         };
@@ -219,26 +220,34 @@ impl Machine {
                         }
                     }
                 }
-                Instruction::MethodCall(method, argc) => {
+                Instruction::MethodCall(method_id, argc) => {
                     let mut args = Vec::new();
                     for _ in 0..argc {
                         args.push(self.pop());
                     }
                     args.reverse();
                     let obj = self.pop();
-                    if let Value::Object(_, _) = &obj {
-                        let type_name = match &obj {
-                            Value::Object(name, _) => name.clone(),
-                            _ => unreachable!(),
-                        };
-                        let mangled = format!("{}.{}", type_name, method);
-                        let func_def = match self.functions.get(&mangled) {
-                            Some(f) => f.clone(),
+                    if let Value::Object(type_name, _) = &obj {
+                        let mangled = format!(
+                            "{}.{}",
+                            type_name,
+                            self.functions
+                                .names
+                                .get(method_id as usize)
+                                .cloned()
+                                .unwrap_or_default()
+                                .split("__method__")
+                                .last()
+                                .unwrap_or("")
+                        );
+                        let (_, func_def) = match self.functions.get_by_name(&mangled) {
+                            Some(x) => x,
                             None => {
-                                eprintln!("error: undefined method '{}.{}'", type_name, method);
+                                eprintln!("error: undefined method '{}'", mangled);
                                 std::process::exit(1);
                             }
                         };
+                        let func_def = func_def.clone();
                         let mut func_env = Environment::new(func_def.slot_count as usize);
                         if let Some(&self_slot) = func_def.params.first() {
                             func_env.set_slot(self_slot, obj);
@@ -258,7 +267,16 @@ impl Machine {
                         self.frames.push(frame);
                         self.ip = 0;
                     } else {
-                        let result = native_method(&obj, &method, &args);
+                        let method_name = self
+                            .functions
+                            .names
+                            .get(method_id as usize)
+                            .cloned()
+                            .unwrap_or_default()
+                            .strip_prefix("__method__")
+                            .unwrap_or("")
+                            .to_string();
+                        let result = native_method(&obj, &method_name, &args);
                         self.push(result);
                     }
                 }

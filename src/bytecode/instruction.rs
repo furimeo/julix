@@ -40,14 +40,14 @@ pub enum Instruction {
     PrintLn,
 
     // functions
-    Call(String, usize),
+    Call(u32, usize),
     Return,
 
     // objects
     Construct(String, Vec<String>),
     GetField(String),
     SetField(String),
-    MethodCall(String, usize),
+    MethodCall(u32, usize),
     Deinit,
 
     // error handling

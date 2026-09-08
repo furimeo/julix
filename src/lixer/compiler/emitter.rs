@@ -55,20 +55,20 @@ fn compile_statement(
 ) {
     match stmt {
         Statement::Print(expr) => {
-            compile_expression(expr, chunk, slots);
+            compile_expression(expr, chunk, slots, functions);
             chunk.push(Instruction::Print);
         }
         Statement::PrintLn(expr) => {
-            compile_expression(expr, chunk, slots);
+            compile_expression(expr, chunk, slots, functions);
             chunk.push(Instruction::PrintLn);
         }
         Statement::Let { name, expr } | Statement::Const { name, expr } => {
-            compile_expression(expr, chunk, slots);
+            compile_expression(expr, chunk, slots, functions);
             let slot = slots.get_or_alloc(name);
             chunk.push(Instruction::StoreSlot(slot));
         }
         Statement::Assign { name, expr } => {
-            compile_expression(expr, chunk, slots);
+            compile_expression(expr, chunk, slots, functions);
             let slot = slots.get_or_alloc(name);
             chunk.push(Instruction::StoreSlot(slot));
         }
@@ -78,7 +78,7 @@ fn compile_statement(
             elif_branches,
             else_body,
         } => {
-            compile_expression(condition, chunk, slots);
+            compile_expression(condition, chunk, slots, functions);
             let jump_false = chunk.len();
             chunk.push(Instruction::JumpIfFalse(0));
             for s in then_body {
@@ -89,7 +89,7 @@ fn compile_statement(
             chunk.code[jump_false] = Instruction::JumpIfFalse(chunk.len());
 
             for branch in elif_branches {
-                compile_expression(&branch.condition, chunk, slots);
+                compile_expression(&branch.condition, chunk, slots, functions);
                 let jf = chunk.len();
                 chunk.push(Instruction::JumpIfFalse(0));
                 for s in &branch.body {
@@ -110,7 +110,7 @@ fn compile_statement(
         }
         Statement::While { condition, body } => {
             let loop_start = chunk.len();
-            compile_expression(condition, chunk, slots);
+            compile_expression(condition, chunk, slots, functions);
             let jump_exit = chunk.len();
             chunk.push(Instruction::JumpIfFalse(0));
             for s in body {
@@ -131,9 +131,9 @@ fn compile_statement(
             let end_name = format!("__end_{}", var);
             let end_slot = slots.get_or_alloc(&end_name);
 
-            compile_expression(start, chunk, slots);
+            compile_expression(start, chunk, slots, functions);
             chunk.push(Instruction::StoreSlot(var_slot));
-            compile_expression(end, chunk, slots);
+            compile_expression(end, chunk, slots, functions);
             chunk.push(Instruction::StoreSlot(end_slot));
             let loop_start = chunk.len();
             chunk.push(Instruction::LoadSlot(var_slot));
@@ -155,11 +155,11 @@ fn compile_statement(
             patch_loop_jumps(chunk, loop_start, continue_target, loop_end);
         }
         Statement::FunctionDef { name, params, body } => {
+            let func_id = functions.get_or_alloc(name);
             let mut func_chunk = Chunk::new();
             let mut func_slots = SlotCtx::new();
-            for (i, param) in params.iter().enumerate() {
+            for param in params {
                 func_slots.get_or_alloc(param);
-                let _ = i;
             }
             for s in body {
                 compile_statement(s, &mut func_chunk, functions, &mut func_slots, None);
@@ -170,8 +170,8 @@ fn compile_statement(
                 .iter()
                 .map(|p| func_slots.get(p).unwrap_or(0))
                 .collect();
-            functions.insert(
-                name.clone(),
+            functions.define(
+                func_id,
                 FunctionDef {
                     chunk: func_chunk,
                     params: param_slots,
@@ -181,7 +181,7 @@ fn compile_statement(
         }
         Statement::Return(expr) => {
             if let Some(e) = expr {
-                compile_expression(e, chunk, slots);
+                compile_expression(e, chunk, slots, functions);
             } else {
                 chunk.push(Instruction::LoadBool(false));
             }
@@ -189,7 +189,7 @@ fn compile_statement(
             chunk.push(Instruction::Return);
         }
         Statement::Expr(expr) => {
-            compile_expression(expr, chunk, slots);
+            compile_expression(expr, chunk, slots, functions);
             chunk.push(Instruction::Pop);
         }
         Statement::TypeDef {
@@ -199,6 +199,7 @@ fn compile_statement(
         } => {
             for method in methods {
                 let mangled = format!("{}.{}", name, method.name);
+                let func_id = functions.get_or_alloc(&mangled);
                 let mut func_chunk = Chunk::new();
                 let mut func_slots = SlotCtx::new();
                 for param in &method.params {
@@ -214,8 +215,8 @@ fn compile_statement(
                     .iter()
                     .map(|p| func_slots.get(p).unwrap_or(0))
                     .collect();
-                functions.insert(
-                    mangled,
+                functions.define(
+                    func_id,
                     FunctionDef {
                         chunk: func_chunk,
                         params: param_slots,
@@ -230,8 +231,8 @@ fn compile_statement(
             field,
             expr,
         } => {
-            compile_expression(object, chunk, slots);
-            compile_expression(expr, chunk, slots);
+            compile_expression(object, chunk, slots, functions);
+            compile_expression(expr, chunk, slots, functions);
             chunk.push(Instruction::SetField(field.clone()));
             if let Expression::Ident(name) = object {
                 let slot = slots.get_or_alloc(name);
@@ -243,9 +244,9 @@ fn compile_statement(
             index,
             expr,
         } => {
-            compile_expression(object, chunk, slots);
-            compile_expression(index, chunk, slots);
-            compile_expression(expr, chunk, slots);
+            compile_expression(object, chunk, slots, functions);
+            compile_expression(index, chunk, slots, functions);
+            compile_expression(expr, chunk, slots, functions);
             chunk.push(Instruction::IndexSet);
             if let Expression::Ident(name) = object {
                 let slot = slots.get_or_alloc(name);
@@ -269,7 +270,7 @@ fn compile_statement(
             }
         }
         Statement::Throw(expr) => {
-            compile_expression(expr, chunk, slots);
+            compile_expression(expr, chunk, slots, functions);
             chunk.push(Instruction::Throw);
         }
         Statement::Try {
@@ -315,7 +316,12 @@ fn patch_loop_jumps(chunk: &mut Chunk, loop_start: usize, continue_target: usize
     }
 }
 
-fn compile_expression(expr: &Expression, chunk: &mut Chunk, slots: &mut SlotCtx) {
+fn compile_expression(
+    expr: &Expression,
+    chunk: &mut Chunk,
+    slots: &mut SlotCtx,
+    functions: &mut FunctionTable,
+) {
     match expr {
         Expression::Int(n) => chunk.push(Instruction::LoadInt(*n)),
         Expression::Float(n) => chunk.push(Instruction::LoadFloat(*n)),
@@ -327,87 +333,88 @@ fn compile_expression(expr: &Expression, chunk: &mut Chunk, slots: &mut SlotCtx)
             chunk.push(Instruction::LoadSlot(slot));
         }
         Expression::Add(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::Add);
         }
         Expression::Sub(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::Sub);
         }
         Expression::Mul(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::Mul);
         }
         Expression::Div(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::Div);
         }
         Expression::Mod(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::Mod);
         }
         Expression::Eq(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::Eq);
         }
         Expression::NotEq(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::NotEq);
         }
         Expression::Lt(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::Lt);
         }
         Expression::Gt(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::Gt);
         }
         Expression::LtEq(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::LtEq);
         }
         Expression::GtEq(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::GtEq);
         }
         Expression::And(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::And);
         }
         Expression::Or(l, r) => {
-            compile_expression(l, chunk, slots);
-            compile_expression(r, chunk, slots);
+            compile_expression(l, chunk, slots, functions);
+            compile_expression(r, chunk, slots, functions);
             chunk.push(Instruction::Or);
         }
         Expression::Not(e) => {
-            compile_expression(e, chunk, slots);
+            compile_expression(e, chunk, slots, functions);
             chunk.push(Instruction::Not);
         }
         Expression::Call { callee, args } => {
             for arg in args {
-                compile_expression(arg, chunk, slots);
+                compile_expression(arg, chunk, slots, functions);
             }
             if let Expression::Ident(name) = callee.as_ref() {
-                chunk.push(Instruction::Call(name.clone(), args.len()));
+                let func_id = functions.get_or_alloc(name);
+                chunk.push(Instruction::Call(func_id, args.len()));
             } else {
                 eprintln!("error: cannot call non-identifier");
                 std::process::exit(1);
             }
         }
         Expression::FieldAccess { object, field } => {
-            compile_expression(object, chunk, slots);
+            compile_expression(object, chunk, slots, functions);
             chunk.push(Instruction::GetField(field.clone()));
         }
         Expression::MethodCall {
@@ -415,16 +422,18 @@ fn compile_expression(expr: &Expression, chunk: &mut Chunk, slots: &mut SlotCtx)
             method,
             args,
         } => {
-            compile_expression(object, chunk, slots);
+            compile_expression(object, chunk, slots, functions);
             for arg in args {
-                compile_expression(arg, chunk, slots);
+                compile_expression(arg, chunk, slots, functions);
             }
-            chunk.push(Instruction::MethodCall(method.clone(), args.len()));
+            let mangled = format!("__method__{}", method);
+            let func_id = functions.get_or_alloc(&mangled);
+            chunk.push(Instruction::MethodCall(func_id, args.len()));
         }
         Expression::Construct { type_name, fields } => {
             let field_names: Vec<String> = fields.iter().map(|(n, _)| n.clone()).collect();
             for (_, e) in fields {
-                compile_expression(e, chunk, slots);
+                compile_expression(e, chunk, slots, functions);
             }
             chunk.push(Instruction::Construct(type_name.clone(), field_names));
         }
@@ -433,20 +442,20 @@ fn compile_expression(expr: &Expression, chunk: &mut Chunk, slots: &mut SlotCtx)
         }
         Expression::List(items) => {
             for item in items {
-                compile_expression(item, chunk, slots);
+                compile_expression(item, chunk, slots, functions);
             }
             chunk.push(Instruction::NewList(items.len()));
         }
         Expression::Map(entries) => {
             for (key, value) in entries {
-                compile_expression(key, chunk, slots);
-                compile_expression(value, chunk, slots);
+                compile_expression(key, chunk, slots, functions);
+                compile_expression(value, chunk, slots, functions);
             }
             chunk.push(Instruction::NewMap(entries.len()));
         }
         Expression::Index { object, index } => {
-            compile_expression(object, chunk, slots);
-            compile_expression(index, chunk, slots);
+            compile_expression(object, chunk, slots, functions);
+            compile_expression(index, chunk, slots, functions);
             chunk.push(Instruction::IndexGet);
         }
         Expression::IndexSet {
@@ -454,9 +463,9 @@ fn compile_expression(expr: &Expression, chunk: &mut Chunk, slots: &mut SlotCtx)
             index,
             value,
         } => {
-            compile_expression(object, chunk, slots);
-            compile_expression(index, chunk, slots);
-            compile_expression(value, chunk, slots);
+            compile_expression(object, chunk, slots, functions);
+            compile_expression(index, chunk, slots, functions);
+            compile_expression(value, chunk, slots, functions);
             chunk.push(Instruction::IndexSet);
         }
         Expression::FString(parts) => {
@@ -474,7 +483,7 @@ fn compile_expression(expr: &Expression, chunk: &mut Chunk, slots: &mut SlotCtx)
                         let tokens = crate::lixer::lexer::token::lex(e);
                         let mut p = crate::lixer::parser::expression::Parser::new(&tokens);
                         let expr = p.parse_expression();
-                        compile_expression(&expr, chunk, slots);
+                        compile_expression(&expr, chunk, slots, functions);
                         chunk.push(Instruction::Stringify);
                         if !first {
                             chunk.push(Instruction::Add);
